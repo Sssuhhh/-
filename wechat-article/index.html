@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>公众号排版｜名人小时候的5个特征</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #F1EEFA;
+    color: #3B3355;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+  }
+  .bar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 20px;
+    background: rgba(255, 255, 255, .92);
+    backdrop-filter: blur(8px);
+    border-bottom: 2px solid #3B3355;
+  }
+  .bar h1 { margin: 0; font-size: 16px; font-weight: 800; }
+  .bar .actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .seg { display: flex; border: 2px solid #3B3355; border-radius: 999px; overflow: hidden; background: #fff; }
+  .seg button {
+    border: 0; background: transparent; color: #3B3355; cursor: pointer;
+    padding: 7px 14px; font-size: 13px; font-weight: 700; font-family: inherit;
+  }
+  .seg button[aria-pressed="true"] { background: #3B3355; color: #fff; }
+  #copy {
+    border: 2px solid #3B3355; border-radius: 999px; cursor: pointer;
+    background: #FFD23F; color: #3B3355; box-shadow: 3px 3px 0 #3B3355;
+    padding: 9px 20px; font-size: 15px; font-weight: 800; font-family: inherit;
+    transition: transform .08s, box-shadow .08s;
+  }
+  #copy:active { transform: translate(3px, 3px); box-shadow: 0 0 0 #3B3355; }
+  .steps {
+    max-width: 720px; margin: 20px auto 0; padding: 0 16px;
+    font-size: 13px; line-height: 1.7; color: #6B6485; text-align: center;
+  }
+  .steps b { color: #3B3355; }
+  .stage { padding: 20px 16px 60px; }
+  #preview {
+    width: 100%; max-width: 420px; margin: 0 auto; background: #fff;
+    padding: 22px 16px 30px; border-radius: 26px;
+    box-shadow: 0 10px 40px rgba(59, 51, 85, .14);
+  }
+  #preview.wide { max-width: 709px; }
+  #toast {
+    position: fixed; left: 50%; bottom: 36px; transform: translate(-50%, 20px);
+    background: #3B3355; color: #fff; padding: 11px 22px; border-radius: 999px;
+    font-size: 14px; font-weight: 700; opacity: 0; pointer-events: none;
+    transition: opacity .2s, transform .2s; max-width: 90vw; text-align: center;
+  }
+  #toast.show { opacity: 1; transform: translate(-50%, 0); }
+  @media (max-width: 560px) {
+    .bar h1 { display: none; }
+    .bar { justify-content: center; }
+  }
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>公众号排版｜名人小时候的5个特征</h1>
+  <div class="actions">
+    <div class="seg" role="group" aria-label="预览宽度">
+      <button type="button" data-width="phone" aria-pressed="true">手机</button>
+      <button type="button" data-width="wide" aria-pressed="false">电脑</button>
+    </div>
+    <button type="button" id="copy">一键复制到公众号</button>
+  </div>
+</header>
+
+<p class="steps">
+  <b>① 点「一键复制到公众号」</b> → <b>② 打开公众号后台的图文编辑器，点一下正文区域</b> → <b>③ Ctrl / ⌘ + V 粘贴</b><br>
+  建议用电脑上的 Chrome 或 Edge 操作；文章标题、封面请在后台单独填写。
+</p>
+
+<main class="stage">
+  <div id="preview"></div>
+</main>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* ---------- 插画（纯内联 SVG：不含 id / class / style 标签 / 外链，公众号可直接粘贴） ---------- */
+
+const INK = '#3B3355';
+const SKIN = '#FFDCC2';
+const n = (v) => Math.round(v * 10) / 10;
+const st = (w = 3) => `stroke="${INK}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"`;
+const svg = (h, inner) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 ${h}" style="display:block;width:100%;height:auto;">${inner}</svg>`;
+
+const twinkle = (begin = 0, dur = 1.8) =>
+  `<animate attributeName="opacity" values="1;0.2;1" dur="${dur}s" begin="${begin}s" repeatCount="indefinite"/>`;
+const bob = (inner, dy = 6, dur = 3, begin = 0) =>
+  `<g>${inner}<animateTransform attributeName="transform" type="translate" values="0 0;0 ${-dy};0 0" dur="${dur}s" begin="${begin}s" repeatCount="indefinite"/></g>`;
+const spin = (inner, cx, cy, dur = 6, dir = 1) =>
+  `<g>${inner}<animateTransform attributeName="transform" type="rotate" from="0 ${cx} ${cy}" to="${360 * dir} ${cx} ${cy}" dur="${dur}s" repeatCount="indefinite"/></g>`;
+const sway = (inner, cx, cy, deg = 8, dur = 2.4) =>
+  `<g>${inner}<animateTransform attributeName="transform" type="rotate" values="${-deg} ${cx} ${cy};${deg} ${cx} ${cy};${-deg} ${cx} ${cy}" dur="${dur}s" repeatCount="indefinite"/></g>`;
+
+const sparkle = (x, y, r, fill = '#fff', begin = 0, outline = true) => {
+  const k = r * 0.24;
+  const d = `M${x},${y - r} Q${x + k},${y - k} ${x + r},${y} Q${x + k},${y + k} ${x},${y + r} Q${x - k},${y + k} ${x - r},${y} Q${x - k},${y - k} ${x},${y - r}Z`;
+  return `<path d="${d}" fill="${fill}" ${outline ? st(2.2) : ''}>${twinkle(begin)}</path>`;
+};
+
+const star5 = (x, y, R, fill, w = 3) => {
+  const pts = [];
+  for (let i = 0; i < 10; i++) {
+    const a = ((-90 + i * 36) * Math.PI) / 180;
+    const r = i % 2 ? R * 0.5 : R;
+    pts.push(`${n(x + r * Math.cos(a))},${n(y + r * Math.sin(a))}`);
+  }
+  return `<polygon points="${pts.join(' ')}" fill="${fill}" ${st(w)}/>`;
+};
+
+const limb = (d, color, w = 14) =>
+  `<path d="${d}" fill="none" stroke="${INK}" stroke-width="${w + 6}" stroke-linecap="round" stroke-linejoin="round"/>` +
+  `<path d="${d}" fill="none" stroke="${color}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>`;
+
+const hand = (x, y, r = 9) => `<circle cx="${x}" cy="${y}" r="${r}" fill="${SKIN}" ${st()}/>`;
+
+const blob = (circles, fill) =>
+  circles.map(([x, y, r]) => `<circle cx="${x}" cy="${y}" r="${r}" fill="${fill}" ${st(6)}/>`).join('') +
+  circles.map(([x, y, r]) => `<circle cx="${x}" cy="${y}" r="${r}" fill="${fill}"/>`).join('');
+
+const burst = (cx, cy, rx, ry, fill, points = 14) => {
+  const pts = [];
+  for (let i = 0; i < points * 2; i++) {
+    const a = (i * Math.PI) / points - Math.PI / 2;
+    const f = i % 2 ? 0.78 : 1;
+    pts.push(`${n(cx + rx * f * Math.cos(a))},${n(cy + ry * f * Math.sin(a))}`);
+  }
+  return `<polygon points="${pts.join(' ')}" fill="${fill}" ${st()}/>`;
+};
+
+const label = (x, y, size, text, fill = INK, extra = '') =>
+  `<text x="${x}" y="${y}" font-size="${size}" font-weight="900" fill="${fill}" text-anchor="middle" ${extra}>${text}</text>`;
+
+const gear = (cx, cy, r, fill, teeth = 8) => {
+  let t = '';
+  for (let i = 0; i < teeth; i++) {
+    t += `<rect x="${n(cx - r * 0.22)}" y="${n(cy - r * 1.32)}" width="${n(r * 0.44)}" height="${n(r * 0.6)}" rx="2" fill="${fill}" ${st(2.5)} transform="rotate(${n((i * 360) / teeth)} ${cx} ${cy})"/>`;
+  }
+  return t + `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${fill}" ${st(2.5)}/><circle cx="${cx}" cy="${cy}" r="${n(r * 0.36)}" fill="#fff" ${st(2.5)}/>`;
+};
+
+const angry = (x, y, s = 1) =>
+  `<g transform="translate(${x} ${y}) scale(${s})" fill="none" stroke="#FF3D5E" stroke-width="5" stroke-linecap="round">` +
+  `<path d="M-13,-5 Q-5,-5 -5,-13"/><path d="M13,-5 Q5,-5 5,-13"/><path d="M-13,5 Q-5,5 -5,13"/><path d="M13,5 Q5,5 5,13"/>` +
+  `<animate attributeName="opacity" values="1;0.35;1" dur="1.1s" repeatCount="indefinite"/></g>`;
+
+const miniFace = (x, y, s = 1) =>
+  `<g transform="translate(${x} ${y}) scale(${s})">` +
+  `<circle cx="-9" cy="0" r="3.4" fill="${INK}"/><circle cx="9" cy="0" r="3.4" fill="${INK}"/>` +
+  `<path d="M-5,7 Q0,12 5,7" fill="none" ${st(2.6)}/>` +
+  `<ellipse cx="-17" cy="7" rx="5" ry="3.2" fill="#FF6F91" opacity="0.55"/><ellipse cx="17" cy="7" rx="5" ry="3.2" fill="#FF6F91" opacity="0.55"/></g>`;
+
+function head(cx, cy, o = {}) {
+  const { k = 1, rot = 0, hair = '#5A4036', style = 'bowl', eyes = 'dot', mouth = 'smile', look = [0, 0] } = o;
+  const [lx, ly] = look;
+  let s = `<g transform="translate(${cx} ${cy}) rotate(${rot}) scale(${k})">`;
+
+  if (style === 'girl') {
+    s += `<circle cx="-43" cy="14" r="14" fill="${hair}" ${st()}/><circle cx="43" cy="14" r="14" fill="${hair}" ${st()}/>`;
+  }
+  s += `<circle cx="-33" cy="5" r="6" fill="${SKIN}" ${st()}/><circle cx="33" cy="5" r="6" fill="${SKIN}" ${st()}/>`;
+  s += `<circle cx="0" cy="0" r="34" fill="${SKIN}" ${st()}/>`;
+
+  const hairPath = {
+    bowl: 'M-36,-2 A36,36 0 0 1 36,-2 Q31,-17 16,-18 Q4,-9 -8,-18 Q-24,-17 -36,-2Z',
+    spiky: 'M-36,-2 L-42,-17 L-32,-18 L-35,-33 L-21,-30 L-14,-45 L-2,-34 L10,-46 L18,-32 L33,-36 L30,-20 L42,-17 L36,-2 Q22,-18 8,-15 Q-2,-21 -14,-14 Q-26,-17 -36,-2Z',
+    girl: 'M-36,-2 A36,36 0 0 1 36,-2 Q30,-17 14,-23 Q-6,-7 -36,-2Z',
+  }[style];
+  s += `<path d="${hairPath}" fill="${hair}" ${st()}/>`;
+  if (style === 'girl') {
+    s += `<circle cx="-35" cy="2" r="5" fill="#FF5C7A" ${st(2.2)}/><circle cx="35" cy="2" r="5" fill="#FF5C7A" ${st(2.2)}/>`;
+  }
+
+  const ex = 13, ey = 5;
+  const dotEye = (x, r) =>
+    `<circle cx="${x + lx}" cy="${ey + ly}" r="${r}" fill="${INK}"/><circle cx="${n(x + lx - r * 0.32)}" cy="${n(ey + ly - r * 0.36)}" r="${n(r * 0.36)}" fill="#fff"/>`;
+  const arcEye = (x) => `<path d="M${x - 6},${ey + 2} Q${x},${ey - 6} ${x + 6},${ey + 2}" fill="none" ${st(3.2)}/>`;
+  if (eyes === 'dot') s += dotEye(-ex, 4.8) + dotEye(ex, 4.8);
+  if (eyes === 'big') s += dotEye(-ex, 6.6) + dotEye(ex, 6.6);
+  if (eyes === 'happy') s += arcEye(-ex) + arcEye(ex);
+  if (eyes === 'wink') s += dotEye(-ex, 4.8) + arcEye(ex);
+  if (eyes === 'hmph') {
+    s += `<path d="M-20,1 L-8,7" fill="none" ${st(3.4)}/><path d="M20,1 L8,7" fill="none" ${st(3.4)}/>`;
+    s += `<path d="M-21,-8 L-9,-3" fill="none" ${st(2.6)}/><path d="M21,-8 L9,-3" fill="none" ${st(2.6)}/>`;
+  }
+
+  const puff = eyes === 'hmph' ? 1.35 : 1;
+  s += `<ellipse cx="-22" cy="15" rx="${n(6.5 * puff)}" ry="${n(4.2 * puff)}" fill="#FF6F91" opacity="0.6"/><ellipse cx="22" cy="15" rx="${n(6.5 * puff)}" ry="${n(4.2 * puff)}" fill="#FF6F91" opacity="0.6"/>`;
+
+  if (mouth === 'smile') s += `<path d="M-6,15 Q0,21 6,15" fill="none" ${st(2.8)}/>`;
+  if (mouth === 'grin') s += `<path d="M-10,13 Q0,29 10,13Z" fill="#E8395B" ${st(2.6)}/>`;
+  if (mouth === 'o') s += `<ellipse cx="0" cy="18" rx="3.6" ry="4.6" fill="#E8395B" ${st(2.4)}/>`;
+  if (mouth === 'pout') s += `<path d="M-6,21 Q0,14 6,21" fill="none" ${st(2.8)}/>`;
+  if (mouth === 'tongue') s += `<ellipse cx="3" cy="20" rx="4.4" ry="5" fill="#FF7C93" ${st(2.2)}/><path d="M-7,14 Q0,21 8,14" fill="none" ${st(2.8)}/>`;
+
+  return s + '</g>';
+}
+
+const rocket = (x, y, rot, s = 1) =>
+  `<g transform="translate(${x} ${y}) rotate(${rot}) scale(${s})">` +
+  `<path d="M-6,13 Q0,34 6,13Z" fill="#FFB020" ${st(2.2)}><animate attributeName="opacity" values="1;0.4;1" dur="0.5s" repeatCount="indefinite"/></path>` +
+  `<path d="M-10,3 L-20,17 L-9,13Z" fill="#FF5C7A" ${st(2.4)}/><path d="M10,3 L20,17 L9,13Z" fill="#FF5C7A" ${st(2.4)}/>` +
+  `<path d="M0,-24 Q13,-9 10,13 L-10,13 Q-13,-9 0,-24Z" fill="#fff" ${st(2.6)}/>` +
+  `<path d="M0,-24 Q7,-16 9.2,-9 L-9.2,-9 Q-7,-16 0,-24Z" fill="#FF5C7A" ${st(2.4)}/>` +
+  `<circle cx="0" cy="1" r="4.8" fill="#7CC6FF" ${st(2.2)}/></g>`;
+
+const bulb = (x, y, s = 1) =>
+  `<g transform="translate(${x} ${y}) scale(${s})">` +
+  `<g fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round"><path d="M0,-34 L0,-27"/><path d="M-26,-22 L-21,-17"/><path d="M26,-22 L21,-17"/><path d="M-34,2 L-27,2"/><path d="M34,2 L27,2"/>${twinkle(0, 1.4)}</g>` +
+  `<rect x="-8" y="15" width="16" height="13" rx="3" fill="#C9D4E5" ${st(2.6)}/>` +
+  `<path d="M-9,18 Q-20,8 -20,-2 A20,20 0 1 1 20,-2 Q20,8 9,18Z" fill="#FFF3A0" ${st()}/>` +
+  `<path d="M-6,4 L0,-4 L6,4" fill="none" ${st(2.4)}/></g>`;
+
+function headerArt() {
+  return svg(236,
+    sparkle(36, 150, 10, '#fff', 0.2) + sparkle(606, 196, 9, '#fff', 0.9) + sparkle(292, 30, 8, '#fff', 0.5) + sparkle(452, 96, 7, '#fff', 1.2) +
+    bob(bulb(58, 72), 7, 3.2) +
+    bob(rocket(566, 66, 32, 1.35), 8, 2.8, 0.4) +
+    spin(gear(596, 148, 13, '#fff'), 596, 148, 7) +
+    sway(label(110, 58, 40, '?', '#fff', `stroke="${INK}" stroke-width="3" stroke-linejoin="round"`), 110, 46, 10, 2.2) +
+    sway(label(420, 70, 46, '!', '#FFE94A', `stroke="${INK}" stroke-width="3" stroke-linejoin="round"`), 420, 56, 9, 2.6) +
+
+    `<path d="M98,240 Q100,193 150,190 Q200,193 202,240Z" fill="#5BB5FF" ${st()}/>` +
+    head(150, 152, { rot: -7, eyes: 'dot', look: [2, -3], mouth: 'o' }) +
+    `<circle cx="184" cy="108" r="4" fill="#fff" ${st(2)}/><circle cx="196" cy="92" r="6.5" fill="#fff" ${st(2)}/>` +
+    bob(star5(214, 62, 17, '#FFE94A', 2.6), 5, 2.6) +
+
+    `<path d="M440,240 Q442,193 492,190 Q542,193 544,240Z" fill="#8B6CFF" ${st()}/>` +
+    head(492, 152, { rot: 7, style: 'girl', hair: '#7A4A2B', eyes: 'wink', mouth: 'tongue' }) +
+
+    limb('M272,206 L242,158', '#2EC4A0', 15) + limb('M368,206 L398,158', '#2EC4A0', 15) +
+    hand(240, 154, 10.5) + hand(400, 154, 10.5) +
+    `<path d="M258,240 Q258,180 320,176 Q382,180 382,240Z" fill="#2EC4A0" ${st()}/>` +
+    bob(head(320, 130, { k: 1.2, style: 'spiky', hair: '#C96A2B', eyes: 'happy', mouth: 'grin' }), 4, 1.6)
+  );
+}
+
+function scene1() {
+  return svg(300,
+    `<rect width="640" height="300" fill="#E1F1FF"/>` +
+    `<circle cx="44" cy="44" r="6" fill="#fff"/><circle cx="170" cy="140" r="5" fill="#fff"/><circle cx="604" cy="118" r="7" fill="#fff"/><circle cx="430" cy="32" r="5" fill="#fff"/>` +
+    sparkle(566, 52, 12, '#FFE94A', 0.3) + sparkle(96, 104, 9, '#fff', 1) +
+
+    blob([[232, 84, 30], [272, 58, 34], [322, 54, 36], [364, 80, 30], [300, 92, 36]], '#fff') +
+    `<circle cx="441" cy="110" r="5.5" fill="#fff" ${st(2.6)}/><circle cx="420" cy="100" r="9" fill="#fff" ${st(2.6)}/>` +
+    bob(rocket(262, 78, -38, 1.15), 5, 2.4) +
+    `<g transform="translate(338 74)"><circle cx="0" cy="0" r="17" fill="#FFB65C" ${st(2.6)}/><path d="M-13,-6 Q0,-1 14,-8" fill="none" stroke="#FF8A3D" stroke-width="3.5" stroke-linecap="round"/><ellipse cx="0" cy="1" rx="27" ry="7.5" fill="none" ${st(2.6)} transform="rotate(-16)"/></g>` +
+    sparkle(302, 48, 7, '#FFD23F', 0.6, false) + sparkle(300, 110, 6, '#8B6CFF', 1.1, false) + sparkle(372, 48, 5, '#FF5C7A', 0.2, false) +
+
+    burst(118, 214, 98, 58, '#FFD23F') +
+    label(118, 227, 36, '喂——！') +
+    `<g fill="none" stroke="#FF5C7A" stroke-width="5.5" stroke-linecap="round"><path d="M232,194 Q246,214 232,234">${twinkle(0, 1.2)}</path><path d="M254,184 Q274,214 254,244">${twinkle(0.3, 1.2)}</path><path d="M276,174 Q302,214 276,254">${twinkle(0.6, 1.2)}</path></g>` +
+
+    `<rect x="386" y="240" width="13" height="70" fill="#B97A4C" ${st()}/><rect x="578" y="240" width="13" height="70" fill="#B97A4C" ${st()}/>` +
+    `<path d="M428,236 Q426,191 479,188 Q532,191 530,236Z" fill="#FFD23F" ${st()}/>` +
+    head(478, 150, { rot: 8, eyes: 'dot', look: [-3, -4], mouth: 'o' }) +
+    `<rect x="356" y="227" width="264" height="17" rx="8.5" fill="#D9925C" ${st()}/>` +
+    `<rect x="368" y="207" width="64" height="20" rx="4" fill="#FF8FA8" ${st()}/><rect x="376" y="188" width="50" height="19" rx="4" fill="#7CC6FF" ${st()}/>` +
+    label(401, 203, 13, '作业', '#fff') +
+    limb('M540,229 L514,188', '#FFD23F') + hand(511, 182) +
+    limb('M438,229 L466,227', '#FFD23F') + hand(471, 226, 8.5)
+  );
+}
+
+function scene2() {
+  return svg(300,
+    `<rect width="640" height="300" fill="#FFF0D4"/>` +
+    `<ellipse cx="330" cy="266" rx="292" ry="24" fill="#FFDFA0"/>` +
+    `<circle cx="50" cy="60" r="6" fill="#fff"/><circle cx="596" cy="60" r="7" fill="#fff"/><circle cx="380" cy="42" r="5" fill="#fff"/>` +
+    sparkle(160, 88, 11, '#fff', 0.2) + sparkle(516, 96, 10, '#fff', 0.9) + sparkle(346, 112, 7, '#FF5C7A', 0.5, false) +
+
+    `<ellipse cx="92" cy="242" rx="58" ry="17" fill="#B97A4C" ${st()}/>` +
+    `<ellipse cx="68" cy="224" rx="15" ry="19" fill="#FFFDF5" ${st()}/>` +
+    bob(
+      `<circle cx="112" cy="210" r="14.5" fill="#FFE066" ${st()}/><path d="M124,207 L134,211 L124,216Z" fill="#FF9A1F" ${st(2.2)}/><circle cx="117" cy="206" r="2.4" fill="${INK}"/><ellipse cx="111" cy="214" rx="4" ry="2.6" fill="#FF6F91" opacity="0.6"/>`,
+      4, 1.4) +
+    `<path d="M95,226 L101,218 L106,226 L112,218 L118,226 L123,218 L129,226 Q130,248 112,248 Q94,248 95,226Z" fill="#FFFDF5" ${st()}/>` +
+    `<path d="M34,242 Q92,262 150,242 Q146,274 92,274 Q38,274 34,242Z" fill="#D9925C" ${st()}/>` +
+    `<path d="M58,258 L74,262 M96,260 L112,264 M124,256 L136,252" fill="none" ${st(2.4)}/>` +
+
+    limb('M248,236 L206,256', '#4C5FD5', 16) + limb('M280,236 L322,256', '#4C5FD5', 16) +
+    `<ellipse cx="199" cy="258" rx="13" ry="10" fill="#fff" ${st()}/><ellipse cx="329" cy="258" rx="13" ry="10" fill="#fff" ${st()}/>` +
+    `<path d="M236,160 Q230,216 240,238 L288,238 Q298,216 292,160 Q264,151 236,160Z" fill="#2EC4A0" ${st()}/>` +
+    bob(head(264, 120, { style: 'spiky', hair: '#C96A2B', eyes: 'big', look: [2, 1], mouth: 'grin' }), 3, 1.2) +
+    limb('M240,174 L208,146', '#2EC4A0') +
+    sway(
+      `<path d="M196,124 L187,107" fill="none" ${st(5.5)}/><path d="M206,142 L196,124" fill="none" stroke="${INK}" stroke-width="16" stroke-linecap="round"/><path d="M206,142 L196,124" fill="none" stroke="#FF5C7A" stroke-width="10" stroke-linecap="round"/>`,
+      206, 144, 9, 0.9) +
+    hand(207, 144) +
+    limb('M288,174 L320,192', '#2EC4A0') + hand(323, 193) +
+    spin(gear(338, 180, 11, '#FFD23F'), 338, 180, 4) +
+
+    `<g transform="translate(432 218) rotate(-14)">` +
+    `<path d="M0,-28 L0,-42" fill="none" ${st()}/><circle cx="0" cy="-47" r="6.5" fill="#FF5C7A" ${st(2.6)}>${twinkle(0, 1)}</circle>` +
+    `<rect x="-43" y="-9" width="8" height="18" rx="3" fill="#FF9A1F" ${st(2.4)}/><rect x="35" y="-9" width="8" height="18" rx="3" fill="#FF9A1F" ${st(2.4)}/>` +
+    `<rect x="-36" y="-28" width="72" height="58" rx="13" fill="#C9D4E5" ${st()}/>` +
+    `<rect x="-26" y="-19" width="52" height="30" rx="9" fill="${INK}"/>` +
+    `<path d="M-17,-9 L-7,1 M-7,-9 L-17,1" fill="none" stroke="#FFE94A" stroke-width="3.4" stroke-linecap="round"/><circle cx="12" cy="-4" r="6" fill="none" stroke="#FFE94A" stroke-width="3.4"/>` +
+    `<path d="M-12,20 q4,-6 8,0 q4,6 8,0 q4,-6 8,0" fill="none" ${st(2.6)}/></g>` +
+    `<path d="M470,240 q6,-18 12,0 q6,18 12,0 q6,-18 12,0 q6,18 12,0" fill="none" ${st()}/>` +
+    `<g transform="translate(552 230) rotate(8)">` +
+    `<path d="M32,-10 L52,-22" fill="none" ${st(7)}/><circle cx="56" cy="-25" r="7" fill="#FF9A1F" ${st(2.6)}/>` +
+    `<rect x="-32" y="-30" width="64" height="60" rx="11" fill="#8FD3FF" ${st()}/>` +
+    `<rect x="-21" y="-19" width="42" height="28" rx="5" fill="${INK}"/>` +
+    `<path d="M-14,-10 Q-4,6 6,-8 Q12,-14 16,2" fill="none" stroke="#FFE94A" stroke-width="3" stroke-linecap="round"/><path d="M-14,2 Q0,-12 14,-10" fill="none" stroke="#FF5C7A" stroke-width="3" stroke-linecap="round"/>` +
+    `<circle cx="-14" cy="19" r="4" fill="#FF5C7A" ${st(2)}/><circle cx="0" cy="19" r="4" fill="#FFD23F" ${st(2)}/><circle cx="14" cy="19" r="4" fill="#2EC4A0" ${st(2)}/></g>` +
+
+    spin(gear(384, 256, 14, '#FFD23F'), 384, 256, 5, -1) +
+    bob(spin(gear(604, 176, 11, '#FF8FA8'), 604, 176, 6), 6, 2.2) +
+    `<circle cx="496" cy="270" r="12" fill="${INK}"/><circle cx="496" cy="270" r="4.5" fill="#C9D4E5"/>` +
+    `<circle cx="606" cy="266" r="6.5" fill="#C9D4E5" ${st(2.4)}/><circle cx="606" cy="266" r="2" fill="${INK}"/><circle cx="356" cy="272" r="5.5" fill="#C9D4E5" ${st(2.4)}/><circle cx="356" cy="272" r="1.8" fill="${INK}"/>`
+  );
+}
+
+function scene3() {
+  return svg(300,
+    `<rect width="640" height="300" fill="#FFE2E8"/>` +
+    `<ellipse cx="320" cy="268" rx="286" ry="22" fill="#FFC6D2"/>` +
+    `<circle cx="250" cy="40" r="6" fill="#fff"/><circle cx="610" cy="56" r="7" fill="#fff"/><circle cx="40" cy="170" r="6" fill="#fff"/>` +
+    sparkle(432, 40, 10, '#fff', 0.4) + sparkle(150, 180, 9, '#fff', 1) +
+
+    `<rect x="30" y="38" width="180" height="70" rx="32" fill="#fff" ${st()}/>` +
+    `<path d="M62,104 L42,136 L100,104" fill="#fff" ${st()}/>` +
+    label(120, 85, 31, '要听话！') +
+
+    `<ellipse cx="277" cy="260" rx="13" ry="8.5" fill="#fff" ${st()}/><ellipse cx="305" cy="260" rx="13" ry="8.5" fill="#fff" ${st()}/>` +
+    `<rect x="269" y="226" width="17" height="32" rx="4" fill="#4C5FD5" ${st()}/><rect x="296" y="226" width="17" height="32" rx="4" fill="#4C5FD5" ${st()}/>` +
+    `<path d="M262,162 Q256,218 264,232 L318,232 Q326,218 320,162 Q291,153 262,162Z" fill="#2EC4A0" ${st()}/>` +
+    limb('M266,184 Q292,208 316,194', '#2EC4A0', 13) + hand(318, 194, 7.5) +
+    limb('M316,184 Q290,208 266,196', '#2EC4A0', 13) + hand(264, 196, 7.5) +
+    head(291, 122, { rot: 9, hair: '#3B3355', eyes: 'hmph', mouth: 'pout' }) +
+    angry(240, 92, 1.1) +
+
+    `<ellipse cx="398" cy="92" rx="48" ry="33" fill="#FFD23F" ${st()}/>` +
+    `<path d="M364,112 L338,128 L376,121" fill="#FFD23F" ${st()}/>` +
+    label(398, 104, 32, '哼！') +
+
+    `<path d="M522,64 L522,252" fill="none" stroke="${INK}" stroke-width="12" stroke-linecap="round"/><path d="M522,64 L522,252" fill="none" stroke="#B97A4C" stroke-width="6" stroke-linecap="round"/>` +
+    `<path d="M522,64 L476,268" fill="none" stroke="${INK}" stroke-width="13" stroke-linecap="round"/><path d="M522,64 L476,268" fill="none" stroke="#D9925C" stroke-width="7" stroke-linecap="round"/>` +
+    `<path d="M522,64 L568,268" fill="none" stroke="${INK}" stroke-width="13" stroke-linecap="round"/><path d="M522,64 L568,268" fill="none" stroke="#D9925C" stroke-width="7" stroke-linecap="round"/>` +
+    `<rect x="462" y="88" width="120" height="108" fill="#fff" ${st()}/>` +
+    `<rect x="466" y="92" width="56" height="50" fill="#FFD23F"/><rect x="522" y="92" width="56" height="50" fill="#7CC6FF"/><rect x="466" y="142" width="56" height="50" fill="#FF8FA8"/><rect x="522" y="142" width="56" height="50" fill="#B7A4FF"/>` +
+    `<path d="M522,112 Q552,112 552,144 Q552,174 522,174 Q494,174 494,142 Q494,112 522,112Z" fill="#FFF8EE" ${st(2.6)}/>` +
+    `<path d="M522,112 L522,174" fill="none" ${st(2.2)}/>` +
+    `<circle cx="509" cy="136" r="4" fill="${INK}"/><ellipse cx="536" cy="142" rx="7" ry="5" fill="#fff" ${st(2.2)}/><circle cx="537" cy="142" r="2.6" fill="${INK}"/>` +
+    `<path d="M522,130 L514,152 L524,152" fill="none" ${st(2.4)}/><path d="M508,162 Q522,170 538,160" fill="none" stroke="#FF3D5E" stroke-width="3.4" stroke-linecap="round"/>` +
+    `<rect x="454" y="196" width="136" height="11" rx="4" fill="#D9925C" ${st()}/>` +
+
+    `<g transform="translate(412 262) rotate(-6)"><ellipse cx="0" cy="0" rx="34" ry="15" fill="#F1D3A8" ${st()}/><circle cx="-18" cy="-2" r="5" fill="#FF5C7A"/><circle cx="-5" cy="-7" r="5" fill="#FFD23F"/><circle cx="9" cy="-6" r="5" fill="#3D9BFF"/><circle cx="20" cy="1" r="5" fill="#2EC4A0"/><ellipse cx="2" cy="6" rx="5" ry="3" fill="#FFE2E8" ${st(2)}/></g>` +
+    `<path d="M352,268 L384,250" fill="none" stroke="${INK}" stroke-width="7" stroke-linecap="round"/><path d="M352,268 L372,257" fill="none" stroke="#FFD23F" stroke-width="3" stroke-linecap="round"/><path d="M384,250 L392,245" fill="none" stroke="#FF5C7A" stroke-width="7" stroke-linecap="round"/>`
+  );
+}
+
+function scene4() {
+  const bar = (x, w, h, fill, face) =>
+    `<path d="M${x},258 L${x},${258 - h + 9} Q${x},${258 - h} ${x + 9},${258 - h} L${x + w - 9},${258 - h} Q${x + w},${258 - h} ${x + w},${258 - h + 9} L${x + w},258Z" fill="${fill}" ${st()}/>` + face;
+  return svg(300,
+    `<rect width="640" height="300" fill="#DDF7EC"/>` +
+    `<circle cx="300" cy="50" r="6" fill="#fff"/><circle cx="440" cy="92" r="5" fill="#fff"/><circle cx="170" cy="96" r="5" fill="#fff"/>` +
+    sparkle(392, 48, 10, '#fff', 0.6) + sparkle(238, 150, 8, '#fff', 0.1) +
+
+    spin(`<g fill="none" stroke="#FFB020" stroke-width="5" stroke-linecap="round"><path d="M74,16 L74,26"/><path d="M74,102 L74,112"/><path d="M26,64 L36,64"/><path d="M112,64 L122,64"/><path d="M40,30 L47,37"/><path d="M101,91 L108,98"/><path d="M40,98 L47,91"/><path d="M101,37 L108,30"/></g>`, 74, 64, 14) +
+    `<circle cx="74" cy="64" r="28" fill="#FFD23F" ${st()}/>` + miniFace(74, 62, 0.9) +
+
+    `<rect x="0" y="258" width="640" height="42" fill="#A5E3C4"/><path d="M0,258 L640,258" fill="none" ${st()}/>` +
+
+    sway(
+      `<path d="M112,258 Q109,238 113,222" fill="none" stroke="${INK}" stroke-width="8" stroke-linecap="round"/><path d="M112,258 Q109,238 113,222" fill="none" stroke="#2EC4A0" stroke-width="3.5" stroke-linecap="round"/>` +
+      `<path d="M113,224 Q92,222 86,204 Q108,200 113,224Z" fill="#5ED39A" ${st(2.6)}/><path d="M113,224 Q134,220 142,200 Q118,198 113,224Z" fill="#5ED39A" ${st(2.6)}/>`,
+      112, 258, 4, 3) +
+
+    bob(
+      `<path d="M258,232 L252,214 M268,232 L272,214" fill="none" ${st(2.8)}/><circle cx="252" cy="212" r="3.6" fill="${INK}"/><circle cx="272" cy="212" r="3.6" fill="${INK}"/>` +
+      `<path d="M180,258 Q170,246 186,244 L244,244 Q246,228 262,228 Q278,230 276,246 Q274,258 258,258Z" fill="#FFE08A" ${st()}/>` +
+      `<circle cx="266" cy="240" r="2.6" fill="${INK}"/><path d="M262,248 Q266,252 271,248" fill="none" ${st(2.2)}/><ellipse cx="258" cy="247" rx="4" ry="2.4" fill="#FF6F91" opacity="0.6"/>` +
+      `<circle cx="214" cy="228" r="25" fill="#FFB65C" ${st()}/><path d="M214,228 Q222,222 222,232 Q220,242 208,240 Q198,236 200,222 Q206,208 224,212 Q236,220 232,236" fill="none" ${st(2.6)}/>`,
+      3, 1.8) +
+
+    bar(326, 46, 36, '#FF8FA8', miniFace(349, 238, 0.7)) +
+    bar(388, 46, 56, '#FFD23F', miniFace(411, 224, 0.7)) +
+    bar(450, 46, 28, '#7CC6FF', miniFace(473, 242, 0.62)) +
+    bar(520, 70, 148, '#FF7A59', miniFace(555, 150, 1)) +
+    `<path d="M536,188 L574,188 M536,208 L574,208 M536,228 L574,228" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" opacity="0.6"/>` +
+
+    `<rect x="538" y="104" width="13" height="20" rx="5" fill="#4C5FD5" ${st(2.6)}/><rect x="559" y="104" width="13" height="20" rx="5" fill="#4C5FD5" ${st(2.6)}/>` +
+    `<path d="M534,110 Q532,82 555,80 Q578,82 576,110Z" fill="#8B6CFF" ${st()}/>` +
+    limb('M572,92 L594,70', '#8B6CFF', 11) + hand(596, 67, 7.5) +
+    bob(star5(607, 47, 17, '#FFE94A', 2.8), 5, 1.6) +
+    limb('M538,92 L524,100', '#8B6CFF', 11) + hand(521, 102, 7.5) +
+    head(555, 54, { k: 0.8, style: 'girl', hair: '#7A4A2B', eyes: 'happy', mouth: 'grin' }) +
+    sparkle(496, 66, 9, '#FFE94A', 0.8) + sparkle(626, 96, 7, '#fff', 0.3)
+  );
+}
+
+function scene5() {
+  const beetle = (x, y, s, rot = 0) =>
+    `<g transform="translate(${x} ${y}) rotate(${rot}) scale(${s})">` +
+    `<path d="M-13,-6 L-22,-12 M-14,2 L-24,2 M-13,10 L-22,16 M13,-6 L22,-12 M14,2 L24,2 M13,10 L22,16" fill="none" ${st(2.6)}/>` +
+    `<path d="M-5,-18 Q-9,-27 -15,-27 M5,-18 Q9,-27 15,-27" fill="none" ${st(2.4)}/>` +
+    `<circle cx="0" cy="-13" r="8.5" fill="${INK}"/>` +
+    `<ellipse cx="0" cy="3" rx="14" ry="16" fill="#FF5C7A" ${st(2.6)}/><path d="M0,-13 L0,19" fill="none" ${st(2.2)}/>` +
+    `<circle cx="-6" cy="-1" r="2.8" fill="${INK}"/><circle cx="6" cy="-1" r="2.8" fill="${INK}"/><circle cx="-6" cy="9" r="2.4" fill="${INK}"/><circle cx="6" cy="9" r="2.4" fill="${INK}"/></g>`;
+  const station = (x, y, r = 6) => `<circle cx="${x}" cy="${y}" r="${r}" fill="#fff" ${st(2.6)}/>`;
+  const tuft = (x) => `<path d="M${x},258 L${x + 4},246 L${x + 9},256 L${x + 14},243 L${x + 19},258" fill="#5ED39A" ${st(2.4)}/>`;
+  return svg(300,
+    `<rect width="640" height="300" fill="#ECE6FF"/>` +
+    `<circle cx="300" cy="36" r="5" fill="#fff"/><circle cx="612" cy="120" r="6" fill="#fff"/><circle cx="30" cy="150" r="5" fill="#fff"/>` +
+    sparkle(400, 96, 10, '#fff', 0.4) + sparkle(160, 150, 8, '#FFE94A', 1) +
+
+    `<path d="M24,44 L98,44 L128,74 L216,74" fill="none" stroke="${INK}" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/><path d="M24,44 L98,44 L128,74 L216,74" fill="none" stroke="#FF5C7A" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>` +
+    `<path d="M30,106 L112,106 L154,64 L154,26" fill="none" stroke="${INK}" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/><path d="M30,106 L112,106 L154,64 L154,26" fill="none" stroke="#3D9BFF" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>` +
+    station(44, 44) + station(98, 44) + station(200, 74) + station(48, 106) + station(112, 106) + station(154, 30) + station(144, 74, 8.5) +
+
+    bob(
+      `<path d="M430,96 Q462,84 486,70" fill="none" stroke="#8B6CFF" stroke-width="3.5" stroke-linecap="round" stroke-dasharray="2 10"/>` +
+      `<path d="M500,62 L572,36 L536,86 L526,70Z" fill="#fff" ${st()}/><path d="M572,36 L526,70 L522,94 L536,86" fill="#D9E8FF" ${st()}/>`,
+      7, 2.6) +
+
+    `<rect x="0" y="258" width="640" height="42" fill="#CFC3FF"/><path d="M0,258 L640,258" fill="none" ${st()}/>` +
+    tuft(20) + tuft(150) + tuft(424) + tuft(606) +
+
+    `<path d="M508,238 Q478,240 462,222" fill="none" stroke="${INK}" stroke-width="20" stroke-linecap="round"/>` +
+    `<path d="M566,222 Q586,196 584,168" fill="none" stroke="${INK}" stroke-width="28" stroke-linecap="round"/>` +
+    `<rect x="514" y="238" width="16" height="24" rx="6" fill="#6FD08F" ${st()}/><rect x="554" y="238" width="16" height="24" rx="6" fill="#6FD08F" ${st()}/>` +
+    `<ellipse cx="540" cy="226" rx="46" ry="27" fill="#7EDC9A" ${st()}/>` +
+    `<path d="M508,238 Q478,240 462,222" fill="none" stroke="#7EDC9A" stroke-width="14" stroke-linecap="round"/>` +
+    `<path d="M566,222 Q586,196 584,168" fill="none" stroke="#7EDC9A" stroke-width="22" stroke-linecap="round"/>` +
+    `<ellipse cx="592" cy="158" rx="23" ry="17" fill="#7EDC9A" ${st()}/>` +
+    `<circle cx="598" cy="153" r="3.6" fill="${INK}"/><path d="M596,165 Q603,169 609,163" fill="none" ${st(2.4)}/><ellipse cx="589" cy="163" rx="5" ry="3" fill="#FF6F91" opacity="0.6"/>` +
+    `<circle cx="524" cy="218" r="5" fill="#4FBF78"/><circle cx="544" cy="230" r="6" fill="#4FBF78"/><circle cx="556" cy="212" r="4" fill="#4FBF78"/>` +
+
+    `<path d="M196,262 Q190,214 232,210 Q274,214 268,262Z" fill="#FF9A1F" ${st()}/>` +
+    head(232, 172, { eyes: 'big', look: [3, 2], mouth: 'o', hair: '#5A4036' }) +
+    `<circle cx="352" cy="206" r="34" fill="#F4FBFF" ${st()}/>` +
+    beetle(352, 208, 1.25, 12) +
+    `<circle cx="352" cy="206" r="34" fill="none" stroke="${INK}" stroke-width="9"/><circle cx="352" cy="206" r="34" fill="none" stroke="#FFD23F" stroke-width="4"/>` +
+    `<path d="M330,190 Q336,180 346,178" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round"/>` +
+    `<path d="M328,232 L308,252" fill="none" stroke="${INK}" stroke-width="13" stroke-linecap="round"/><path d="M328,232 L308,252" fill="none" stroke="#B97A4C" stroke-width="7" stroke-linecap="round"/>` +
+    limb('M262,230 L300,248', '#FF9A1F') + hand(305, 250) +
+    bob(beetle(420, 244, 0.5, 70), 2, 0.8) + bob(beetle(458, 250, 0.42, 80), 2, 0.8, 0.3) +
+    sparkle(286, 132, 9, '#FFE94A', 0.2) + sparkle(190, 128, 7, '#fff', 0.8)
+  );
+}
+
+function shapesArt() {
+  const items = [
+    star5(80, 70, 46, '#FFD23F') + miniFace(80, 72, 0.9),
+    `<path d="M200,108 C150,76 158,30 184,30 C196,30 200,42 200,48 C200,42 204,30 216,30 C242,30 250,76 200,108Z" fill="#FF7C93" ${st()}/>` + miniFace(200, 62, 0.9),
+    `<circle cx="320" cy="68" r="39" fill="#7CC6FF" ${st()}/>` + miniFace(320, 66, 1),
+    `<polygon points="440,26 486,104 394,104" fill="#5ED39A" ${st(6)}/>` + miniFace(440, 78, 0.9),
+    blob([[560, 40, 17], [585, 55, 17], [585, 83, 17], [560, 98, 17], [535, 83, 17], [535, 55, 17], [560, 69, 20]], '#B7A4FF') + miniFace(560, 68, 0.9),
+  ];
+  return svg(132, items.map((s, i) => bob(s, 8, 1.6, i * 0.2)).join(''));
+}
+
+/* ---------- 正文（全部内联样式，公众号编辑器可保留） ---------- */
+
+const TRAITS = [
+  {
+    c: '#3D9BFF', d: '#1F7BE0', l: '#E1F1FF', title: '爱发呆、叫不应', art: scene1,
+    story: (nm) => [`${nm('马斯克')}小时候常盯着空气放空，喊破喉咙都不理人，父母差点以为他耳聋。`],
+    tip: (hl) => `孩子走神未必是偷懒，可能是在${hl('深度思考')}，别一声暴喝打断了他的奇思妙想。`,
+  },
+  {
+    c: '#FF9A1F', d: '#E07A00', l: '#FFF0D4', title: '爱拆家、搞破坏', art: scene2,
+    story: (nm) => [`${nm('爱迪生')}蹲鸡窝孵蛋，${nm('乔布斯')}小学天天搞恶作剧，却能在车库安静拆装电子元件。`],
+    tip: (hl) => `家里玩具活不过三天，背后其实是极强的${hl('动手欲和探索欲')}。`,
+  },
+  {
+    c: '#FF5C7A', d: '#E8395B', l: '#FFE2E8', title: '脾气犟、不合群', art: scene3,
+    story: (nm, q) => [
+      `${nm('比尔·盖茨')}小时候常和妈妈激烈争吵，心理医生劝他父母：${q('“放手吧，你们赢不了他。”')}`,
+      `${nm('毕加索')}被关禁闭反而开心，因为终于能专心画画。`,
+    ],
+    tip: (hl) => `这种孩子带起来费妈，但天生有${hl('独立判断力')}，长大了不容易被洗脑。`,
+  },
+  {
+    c: '#1FBF8F', d: '#0F9F74', l: '#DDF7EC', title: '开窍晚、有短板', art: scene4,
+    story: (nm, q) => [`${nm('爱因斯坦')}快3岁才说话，被私下叫${q('“小笨蛋”')}；推理女王${nm('阿加莎')}从小有拼写障碍。`],
+    tip: (hl) => `很多顶尖人才都是非标准化成长的——${hl('短板明显，但长板极长')}。`,
+  },
+  {
+    c: '#8B6CFF', d: '#6A4BE8', l: '#ECE6FF', title: '痴迷“没用的事”', art: scene5,
+    story: (nm, q) => [`${nm('达尔文')}小时候天天抓甲虫，被父亲骂${q('“给全家丢脸”')}；${nm('宫崎骏')}体育垫底，却能临摹飞机结构好几个小时。`],
+    tip: (hl) => `别嫌孩子迷恋恐龙、昆虫或地铁图，这种无功利心的死磕，就是${hl('未来深度钻研的雏形')}。`,
+  },
+];
+
+const P = 'margin:0;padding:0;font-size:16px;line-height:1.85;color:#3B3355;text-align:justify;';
+const marker = (text) => `<span style="font-weight:700;background-image:linear-gradient(transparent 62%,#FFE27A 62%);">${text}</span>`;
+
+function traitBlock(t, i) {
+  const nm = (name) => `<strong style="color:${t.d};font-weight:800;">${name}</strong>`;
+  const q = (text) => `<span style="color:${t.d};font-weight:700;">${text}</span>`;
+  return `
+<section style="margin:38px 0 0;">
+  <section style="display:flex;align-items:center;">
+    <section style="flex-shrink:0;width:46px;height:46px;line-height:42px;border-radius:50%;background-color:${t.c};border:2px solid ${INK};box-shadow:3px 3px 0 ${INK};color:#fff;font-size:25px;font-weight:900;text-align:center;transform:rotate(-8deg);">${i + 1}</section>
+    <section style="margin-left:12px;padding:5px 18px;background-color:${t.l};border:2px solid ${INK};border-radius:999px;font-size:19px;line-height:1.5;font-weight:900;color:${INK};letter-spacing:1px;">${t.title}</section>
+  </section>
+  <section style="margin:14px 5px 0 0;border:2px solid ${INK};border-radius:20px;background-color:#fff;box-shadow:5px 5px 0 ${t.c};overflow:hidden;">
+    <section style="border-bottom:2px solid ${INK};line-height:0;">${t.art()}</section>
+    <section style="padding:16px 16px 18px;">
+      ${t.story(nm, q).map((s, j) => `<p style="${P}${j ? 'margin-top:10px;' : ''}">${s}</p>`).join('')}
+      <section style="margin-top:14px;display:flex;align-items:flex-start;background-color:${t.l};border-radius:14px;padding:11px 13px;">
+        <section style="flex-shrink:0;font-size:18px;line-height:1.6;margin-right:8px;">💡</section>
+        <p style="${P}font-size:15px;line-height:1.75;">${t.tip(marker)}</p>
+      </section>
+    </section>
+  </section>
+</section>`;
+}
+
+function buildArticle() {
+  return `
+<section style="font-size:16px;line-height:1.85;color:${INK};letter-spacing:0.5px;">
+
+  <section style="margin:0 6px 0 0;border:2px solid ${INK};border-radius:24px;background-color:#FF8A7A;background-image:linear-gradient(135deg,#FF6FA3 0%,#FF9A56 55%,#FFD23F 100%);box-shadow:6px 6px 0 ${INK};overflow:hidden;text-align:center;">
+    <section style="padding:26px 12px 0;">
+      <section style="display:inline-block;background-color:#fff;border:2px solid ${INK};border-radius:999px;padding:1px 14px;font-size:13px;line-height:1.7;font-weight:800;color:${INK};transform:rotate(-3deg);">✦ 对照一下 ✦</section>
+      <p style="margin:12px 0 0;padding:0;font-size:27px;line-height:1.3;font-weight:900;color:#fff;letter-spacing:3px;text-shadow:2px 2px 0 ${INK};text-align:center;">名人小时候的</p>
+      <p style="margin:0;padding:0;line-height:1.15;text-align:center;"><span style="font-size:70px;font-weight:900;color:#FFF04D;text-shadow:4px 4px 0 ${INK};">5</span><span style="font-size:42px;font-weight:900;color:#fff;letter-spacing:4px;text-shadow:3px 3px 0 ${INK};">个特征</span></p>
+      <section style="display:inline-block;margin-top:10px;background-color:${INK};border-radius:999px;padding:5px 18px;font-size:15px;line-height:1.6;font-weight:700;color:#fff;letter-spacing:1px;">快看看你家孩子中了几条？</section>
+    </section>
+    <section style="margin-top:6px;line-height:0;">${headerArt()}</section>
+  </section>
+
+  <section style="margin:34px 0 0;display:flex;align-items:flex-start;">
+    <section style="flex-shrink:0;font-size:38px;line-height:1.1;margin-right:8px;">😤</section>
+    <section style="background-color:#FFF4C2;border:2px solid ${INK};border-radius:4px 20px 20px 20px;box-shadow:4px 4px 0 #FFD23F;padding:10px 16px;margin-right:5px;">
+      <p style="${P}font-size:17px;line-height:1.7;font-weight:800;">辅导作业又气到心梗？</p>
+      <p style="${P}font-size:17px;line-height:1.7;font-weight:800;">先别急着焦虑。</p>
+    </section>
+  </section>
+  <p style="${P}margin-top:20px;">如果把历史上那些大佬丢进今天的评价体系，他们小时候几乎全是老师眼里的<strong style="color:#E8395B;font-weight:800;">“问题儿童”</strong>。</p>
+  <p style="${P}margin-top:10px;font-weight:800;">${marker('对照一下，你家孩子中了几个？')} 👇</p>
+
+  ${TRAITS.map(traitBlock).join('')}
+
+  <p style="margin:40px 0 0;padding:0;text-align:center;font-size:15px;line-height:1.5;color:#FF9A1F;letter-spacing:10px;">✦ ✦ ✦</p>
+  <p style="${P}margin-top:18px;">有这些毛病，当然不代表以后一定能成名。</p>
+  <p style="${P}margin-top:10px;">但它足以说明一件事：</p>
+
+  <section style="margin:20px 6px 0 2px;border:2px solid ${INK};border-radius:20px;background-color:#FFF7CF;box-shadow:5px 5px 0 #FF5C7A;padding:18px 12px 20px;text-align:center;transform:rotate(-1deg);">
+    <section style="line-height:0;">${shapesArt()}</section>
+    <p style="margin:8px 0 0;padding:0;font-size:21px;line-height:1.6;font-weight:900;color:${INK};text-align:center;letter-spacing:1px;">优秀的孩子，</p>
+    <p style="margin:0;padding:0;font-size:21px;line-height:1.6;font-weight:900;color:#E8395B;text-align:center;letter-spacing:1px;">从来不是一个模子里刻出来的。</p>
+  </section>
+
+  <p style="${P}margin-top:30px;">AI时代最不缺<strong style="color:#6A4BE8;font-weight:800;">“听话的标准件”</strong>。</p>
+  <p style="${P}margin-top:10px;">下次孩子再发呆、拆玩具、跟你顶嘴时，深呼吸一下，别太急着把他们身上${marker('带棱角的生命力')}，全都磨平了。</p>
+
+  <section style="margin:36px 6px 0 0;border:2px solid ${INK};border-radius:22px;background-color:#8B6CFF;background-image:linear-gradient(135deg,#8B6CFF 0%,#3D9BFF 100%);box-shadow:6px 6px 0 ${INK};padding:24px 16px 26px;text-align:center;">
+    <p style="margin:0;padding:0;font-size:34px;line-height:1.2;text-align:center;">💬</p>
+    <p style="margin:8px 0 0;padding:0;font-size:19px;line-height:1.6;font-weight:900;color:#fff;text-align:center;">你家孩子中了哪几条？</p>
+    <p style="margin:4px 0 0;padding:0;font-size:16px;line-height:1.7;font-weight:700;color:#fff;text-align:center;">平时最让你头疼的“怪癖”是什么？</p>
+    <section style="display:inline-block;margin-top:16px;background-color:#FFE94A;border:2px solid ${INK};border-radius:999px;box-shadow:3px 3px 0 ${INK};padding:6px 24px;font-size:17px;line-height:1.6;font-weight:900;color:${INK};letter-spacing:1px;">评论区聊聊！</section>
+  </section>
+
+</section>`.replace(/>\s+</g, '><').trim();
+}
+
+/* ---------- 页面交互 ---------- */
+
+const preview = document.getElementById('preview');
+const toastEl = document.getElementById('toast');
+const articleHtml = buildArticle();
+preview.innerHTML = articleHtml;
+
+let toastTimer;
+function toast(message) {
+  toastEl.textContent = message;
+  toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('show'), 3200);
+}
+
+function copyViaEvent(html, text) {
+  let handled = false;
+  const onCopy = (event) => {
+    event.clipboardData.setData('text/html', html);
+    event.clipboardData.setData('text/plain', text);
+    event.preventDefault();
+    handled = true;
+  };
+  const selection = window.getSelection();
+  const range = document.createRange();
+  range.selectNodeContents(preview);
+  selection.removeAllRanges();
+  selection.addRange(range);
+  document.addEventListener('copy', onCopy);
+  let result = false;
+  try {
+    result = document.execCommand('copy');
+  } catch (error) {
+    result = false;
+  }
+  document.removeEventListener('copy', onCopy);
+  selection.removeAllRanges();
+  return handled && result;
+}
+
+async function copyViaClipboardApi(html, text) {
+  if (!navigator.clipboard || !window.ClipboardItem) return false;
+  try {
+    await navigator.clipboard.write([
+      new ClipboardItem({
+        'text/html': new Blob([html], { type: 'text/html' }),
+        'text/plain': new Blob([text], { type: 'text/plain' }),
+      }),
+    ]);
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
+document.getElementById('copy').addEventListener('click', async () => {
+  const text = preview.innerText;
+  const ok = copyViaEvent(articleHtml, text) || (await copyViaClipboardApi(articleHtml, text));
+  toast(ok ? '已复制！去公众号编辑器里 Ctrl / ⌘ + V 粘贴' : '复制失败：请换用电脑上的 Chrome 或 Edge 再试');
+});
+
+document.querySelectorAll('.seg button').forEach((button) => {
+  button.addEventListener('click', () => {
+    document.querySelectorAll('.seg button').forEach((b) => b.setAttribute('aria-pressed', String(b === button)));
+    preview.classList.toggle('wide', button.dataset.width === 'wide');
+  });
+});
+</script>
+</body>
+</html>

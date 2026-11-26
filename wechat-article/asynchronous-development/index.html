@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>公众号排版｜最容易被当成“毛病”纠正的4种行为</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #FBF3F8;
+    color: #4B4453;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+  }
+  .bar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 20px;
+    background: rgba(255, 255, 255, .92);
+    backdrop-filter: blur(8px);
+    border-bottom: 2px solid #F6D3E2;
+  }
+  .bar h1 { margin: 0; font-size: 16px; font-weight: 800; }
+  .bar .actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .seg { display: flex; border: 2px solid #E8558A; border-radius: 999px; overflow: hidden; background: #fff; }
+  .seg button {
+    border: 0; background: transparent; color: #E8558A; cursor: pointer;
+    padding: 7px 14px; font-size: 13px; font-weight: 700; font-family: inherit;
+  }
+  .seg button[aria-pressed="true"] { background: #E8558A; color: #fff; }
+  #copy {
+    border: 0; border-radius: 999px; cursor: pointer;
+    background: #FF8FB1; color: #fff; box-shadow: 0 4px 0 #E8558A;
+    padding: 10px 22px; font-size: 15px; font-weight: 800; font-family: inherit;
+    transition: transform .08s, box-shadow .08s;
+  }
+  #copy:active { transform: translateY(4px); box-shadow: 0 0 0 #E8558A; }
+  .steps {
+    max-width: 720px; margin: 20px auto 0; padding: 0 16px;
+    font-size: 13px; line-height: 1.7; color: #8C8198; text-align: center;
+  }
+  .steps b { color: #4B4453; }
+  .steps a { color: #E8558A; font-weight: 700; }
+  .stage { padding: 20px 16px 60px; }
+  #preview {
+    width: 100%; max-width: 420px; margin: 0 auto; background: #fff;
+    padding: 22px 16px 30px; border-radius: 26px;
+    box-shadow: 0 10px 40px rgba(232, 85, 138, .12);
+  }
+  #preview.wide { max-width: 709px; }
+  #toast {
+    position: fixed; left: 50%; bottom: 36px; transform: translate(-50%, 20px);
+    background: #4B4453; color: #fff; padding: 11px 22px; border-radius: 999px;
+    font-size: 14px; font-weight: 700; opacity: 0; pointer-events: none;
+    transition: opacity .2s, transform .2s; max-width: 90vw; text-align: center;
+  }
+  #toast.show { opacity: 1; transform: translate(-50%, 0); }
+  @media (max-width: 560px) {
+    .bar h1 { display: none; }
+    .bar { justify-content: center; }
+  }
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>公众号排版｜最容易被当成“毛病”纠正的4种行为</h1>
+  <div class="actions">
+    <div class="seg" role="group" aria-label="预览宽度">
+      <button type="button" data-width="phone" aria-pressed="true">手机</button>
+      <button type="button" data-width="wide" aria-pressed="false">电脑</button>
+    </div>
+    <button type="button" id="copy">一键复制到公众号</button>
+  </div>
+</header>
+
+<p class="steps">
+  <b>① 点「一键复制到公众号」</b> → <b>② 打开公众号后台的图文编辑器，点一下正文区域</b> → <b>③ Ctrl / ⌘ + V 粘贴</b><br>
+  建议用电脑上的 Chrome 或 Edge 操作；文章标题请在后台单独填写。<br>
+  封面图下载：<a href="cover-900x383.png" download>横版 2.35:1</a> ｜ <a href="cover-1x1.png" download>方形 1:1</a>
+</p>
+
+<main class="stage">
+  <div id="preview"></div>
+</main>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* ---------- 插画（纯内联 SVG：不含 id / class / style 标签 / 外链，公众号可直接粘贴） ---------- */
+
+const INK = '#5A4868';
+const TEXT = '#4B4453';
+const SKIN = '#FFE1CC';
+const HAIR = '#6B4E3D';
+const C = {
+  pink: { c: '#FF8FB1', l: '#FFE4EE', d: '#E8558A' },
+  lemon: { c: '#FFD95A', l: '#FFF6D2', d: '#B97F00' },
+  mint: { c: '#6FD6B5', l: '#DDF7EE', d: '#1F9E7A' },
+  blue: { c: '#7DBDFF', l: '#E0F0FF', d: '#3A86D9' },
+  lav: { c: '#B49CFF', l: '#EEE8FF', d: '#7A5BE0' },
+  peach: { c: '#FFAE8A', l: '#FFEADF', d: '#E26A3B' },
+};
+
+const n = (v) => Math.round(v * 10) / 10;
+const st = (w = 2.8) => `stroke="${INK}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"`;
+const svg = (h, inner, w = 640) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" style="display:block;width:100%;height:auto;">${inner}</svg>`;
+
+const twinkle = (begin = 0, dur = 1.8) =>
+  `<animate attributeName="opacity" values="1;0.2;1" dur="${dur}s" begin="${begin}s" repeatCount="indefinite"/>`;
+const bob = (inner, dy = 6, dur = 3, begin = 0) =>
+  `<g>${inner}<animateTransform attributeName="transform" type="translate" values="0 0;0 ${-dy};0 0" dur="${dur}s" begin="${begin}s" repeatCount="indefinite"/></g>`;
+const slide = (inner, dx = 6, dur = 1.2, begin = 0) =>
+  `<g>${inner}<animateTransform attributeName="transform" type="translate" values="0 0;${dx} 0;0 0" dur="${dur}s" begin="${begin}s" repeatCount="indefinite"/></g>`;
+const sway = (inner, cx, cy, deg = 8, dur = 2.4) =>
+  `<g>${inner}<animateTransform attributeName="transform" type="rotate" values="${-deg} ${cx} ${cy};${deg} ${cx} ${cy};${-deg} ${cx} ${cy}" dur="${dur}s" repeatCount="indefinite"/></g>`;
+
+const sparkle = (x, y, r, fill = '#fff', begin = 0) => {
+  const k = r * 0.24;
+  const d = `M${x},${y - r} Q${x + k},${y - k} ${x + r},${y} Q${x + k},${y + k} ${x},${y + r} Q${x - k},${y + k} ${x - r},${y} Q${x - k},${y - k} ${x},${y - r}Z`;
+  return `<path d="${d}" fill="${fill}">${twinkle(begin)}</path>`;
+};
+
+const star5 = (x, y, R, fill, w = 2.8) => {
+  const pts = [];
+  for (let i = 0; i < 10; i++) {
+    const a = ((-90 + i * 36) * Math.PI) / 180;
+    const r = i % 2 ? R * 0.52 : R;
+    pts.push(`${n(x + r * Math.cos(a))},${n(y + r * Math.sin(a))}`);
+  }
+  return `<polygon points="${pts.join(' ')}" fill="${fill}" ${st(w)}/>`;
+};
+
+const limb = (d, color, w = 14) =>
+  `<path d="${d}" fill="none" stroke="${INK}" stroke-width="${w + 5.6}" stroke-linecap="round" stroke-linejoin="round"/>` +
+  `<path d="${d}" fill="none" stroke="${color}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>`;
+
+const hand = (x, y, r = 9) => `<circle cx="${x}" cy="${y}" r="${r}" fill="${SKIN}" ${st()}/>`;
+
+const blob = (circles, fill, w = 5.6) =>
+  circles.map(([x, y, r]) => `<circle cx="${x}" cy="${y}" r="${r}" fill="${fill}" ${st(w)}/>`).join('') +
+  circles.map(([x, y, r]) => `<circle cx="${x}" cy="${y}" r="${r}" fill="${fill}"/>`).join('');
+
+const puff = (circles, opacity = 0.7) =>
+  `<g fill="#fff" opacity="${opacity}">${circles.map(([x, y, r]) => `<circle cx="${x}" cy="${y}" r="${r}"/>`).join('')}</g>`;
+
+const label = (x, y, size, text, fill = INK, extra = '') =>
+  `<text x="${x}" y="${y}" font-size="${size}" font-weight="900" fill="${fill}" text-anchor="middle" ${extra}>${text}</text>`;
+
+const pill = (cx, cy, w, h, fill, text, color, size = 19) =>
+  `<rect x="${cx - w / 2}" y="${cy - h / 2}" width="${w}" height="${h}" rx="${h / 2}" fill="${fill}"/>` + label(cx, n(cy + size * 0.36), size, text, color);
+
+const miniFace = (x, y, s = 1, mood = 'smile') =>
+  `<g transform="translate(${x} ${y}) scale(${s})">` +
+  `<circle cx="-9" cy="0" r="3.4" fill="${INK}"/><circle cx="9" cy="0" r="3.4" fill="${INK}"/>` +
+  (mood === 'smile' ? `<path d="M-5,7 Q0,12 5,7" fill="none" ${st(2.6)}/>` : `<path d="M-5,11 Q0,6 5,11" fill="none" ${st(2.6)}/>`) +
+  `<ellipse cx="-17" cy="7" rx="5" ry="3.2" fill="#FF7FA6" opacity="0.5"/><ellipse cx="17" cy="7" rx="5" ry="3.2" fill="#FF7FA6" opacity="0.5"/></g>`;
+
+const drop = (x, y, s = 1, fill = '#7DBDFF') =>
+  `<path d="M${x},${y - 8 * s} Q${x - 6 * s},${y + 2 * s} ${x},${y + 6 * s} Q${x + 6 * s},${y + 2 * s} ${x},${y - 8 * s}Z" fill="${fill}" ${st(2)}/>`;
+
+function head(cx, cy, o = {}) {
+  const { k = 1, rot = 0, hair = HAIR, style = 'bowl', eyes = 'dot', mouth = 'smile', look = [0, 0] } = o;
+  const [lx, ly] = look;
+  let s = `<g transform="translate(${cx} ${cy}) rotate(${rot}) scale(${k})">`;
+
+  if (style === 'mom') {
+    s += `<path d="M-37,-6 Q-40,-40 0,-40 Q40,-40 37,-6 L40,26 Q31,35 22,27 L22,6 L-22,6 L-22,27 Q-31,35 -40,26Z" fill="${hair}" ${st()}/>`;
+  }
+  s += `<circle cx="-33" cy="5" r="6" fill="${SKIN}" ${st()}/><circle cx="33" cy="5" r="6" fill="${SKIN}" ${st()}/>`;
+  s += `<circle cx="0" cy="0" r="34" fill="${SKIN}" ${st()}/>`;
+
+  const hairPath = {
+    bowl: 'M-36,-2 A36,36 0 0 1 36,-2 Q31,-17 16,-18 Q4,-9 -8,-18 Q-24,-17 -36,-2Z',
+    mom: 'M-36,-2 A36,36 0 0 1 36,-2 Q30,-17 14,-23 Q-6,-7 -36,-2Z',
+  }[style];
+  s += `<path d="${hairPath}" fill="${hair}" ${st()}/>`;
+
+  const ex = 13, ey = 5;
+  const dotEye = (x, r) =>
+    `<circle cx="${x + lx}" cy="${ey + ly}" r="${r}" fill="${INK}"/><circle cx="${n(x + lx - r * 0.32)}" cy="${n(ey + ly - r * 0.36)}" r="${n(r * 0.36)}" fill="#fff"/>`;
+  const arcEye = (x, up) => `<path d="M${x - 6},${ey + (up ? 2 : -1)} Q${x},${ey + (up ? -6 : 7)} ${x + 6},${ey + (up ? 2 : -1)}" fill="none" ${st(3)}/>`;
+  if (eyes === 'dot') s += dotEye(-ex, 4.8) + dotEye(ex, 4.8);
+  if (eyes === 'big') s += dotEye(-ex, 6.4) + dotEye(ex, 6.4);
+  if (eyes === 'happy') s += arcEye(-ex, true) + arcEye(ex, true);
+  if (eyes === 'cry') {
+    s += arcEye(-ex, false) + arcEye(ex, false);
+    s += `<path d="M-23,-6 L-11,-10" fill="none" ${st(2.4)}/><path d="M23,-6 L11,-10" fill="none" ${st(2.4)}/>`;
+  }
+  if (eyes === 'frown') {
+    s += dotEye(-ex, 4.8) + dotEye(ex, 4.8);
+    s += `<path d="M-21,-9 L-9,-5" fill="none" ${st(2.4)}/><path d="M21,-9 L9,-5" fill="none" ${st(2.4)}/>`;
+  }
+
+  s += `<ellipse cx="-22" cy="15" rx="6.5" ry="4.2" fill="#FF7FA6" opacity="0.55"/><ellipse cx="22" cy="15" rx="6.5" ry="4.2" fill="#FF7FA6" opacity="0.55"/>`;
+
+  if (mouth === 'smile') s += `<path d="M-6,15 Q0,21 6,15" fill="none" ${st(2.6)}/>`;
+  if (mouth === 'grin') s += `<path d="M-10,13 Q0,29 10,13Z" fill="#F0618F" ${st(2.4)}/>`;
+  if (mouth === 'o') s += `<ellipse cx="0" cy="18" rx="3.6" ry="4.6" fill="#F0618F" ${st(2.2)}/>`;
+  if (mouth === 'pout') s += `<path d="M-6,21 Q0,14 6,21" fill="none" ${st(2.6)}/>`;
+  if (mouth === 'wail') s += `<path d="M-10,25 Q0,8 10,25 Q0,29 -10,25Z" fill="#F0618F" ${st(2.4)}/>`;
+
+  if (eyes === 'cry') s += drop(-15, 18, 1) + drop(15, 18, 1);
+  return s + '</g>';
+}
+
+const rocket = (x, y, rot, s = 1) =>
+  `<g transform="translate(${x} ${y}) rotate(${rot}) scale(${s})">` +
+  `<path d="M-6,13 Q0,34 6,13Z" fill="#FFC14D" ${st(2.2)}><animate attributeName="opacity" values="1;0.4;1" dur="0.5s" repeatCount="indefinite"/></path>` +
+  `<path d="M-10,3 L-20,17 L-9,13Z" fill="#FF8FB1" ${st(2.4)}/><path d="M10,3 L20,17 L9,13Z" fill="#FF8FB1" ${st(2.4)}/>` +
+  `<path d="M0,-24 Q13,-9 10,13 L-10,13 Q-13,-9 0,-24Z" fill="#fff" ${st(2.6)}/>` +
+  `<path d="M0,-24 Q7,-16 9.2,-9 L-9.2,-9 Q-7,-16 0,-24Z" fill="#FF8FB1" ${st(2.4)}/>` +
+  `<circle cx="0" cy="1" r="4.8" fill="#7DBDFF" ${st(2.2)}/></g>`;
+
+const planet = (x, y, r = 16) =>
+  `<g transform="translate(${x} ${y})"><circle cx="0" cy="0" r="${r}" fill="#FFC79A" ${st(2.6)}/><path d="M${-r * 0.75},${-r * 0.35} Q0,0 ${r * 0.8},${-r * 0.45}" fill="none" stroke="#FFA36B" stroke-width="3.2" stroke-linecap="round"/><ellipse cx="0" cy="1" rx="${n(r * 1.6)}" ry="${n(r * 0.44)}" fill="none" ${st(2.6)} transform="rotate(-16)"/></g>`;
+
+const dino = (x, y, s = 1) =>
+  `<g transform="translate(${x} ${y}) scale(${s})">` +
+  `<path d="M-32,12 Q-62,14 -78,-4" fill="none" stroke="${INK}" stroke-width="20" stroke-linecap="round"/>` +
+  `<path d="M26,-4 Q46,-30 44,-58" fill="none" stroke="${INK}" stroke-width="28" stroke-linecap="round"/>` +
+  `<rect x="-26" y="12" width="16" height="24" rx="6" fill="#74D69B" ${st()}/><rect x="14" y="12" width="16" height="24" rx="6" fill="#74D69B" ${st()}/>` +
+  `<ellipse cx="0" cy="0" rx="46" ry="27" fill="#8BE3AC" ${st()}/>` +
+  `<path d="M-32,12 Q-62,14 -78,-4" fill="none" stroke="#8BE3AC" stroke-width="14.4" stroke-linecap="round"/>` +
+  `<path d="M26,-4 Q46,-30 44,-58" fill="none" stroke="#8BE3AC" stroke-width="22.4" stroke-linecap="round"/>` +
+  `<ellipse cx="52" cy="-68" rx="23" ry="17" fill="#8BE3AC" ${st()}/>` +
+  `<circle cx="58" cy="-73" r="3.6" fill="${INK}"/><path d="M56,-61 Q63,-57 69,-63" fill="none" ${st(2.4)}/><ellipse cx="49" cy="-63" rx="5" ry="3" fill="#FF7FA6" opacity="0.55"/>` +
+  `<circle cx="-16" cy="-8" r="5" fill="#5FCB8B"/><circle cx="4" cy="4" r="6" fill="#5FCB8B"/><circle cx="16" cy="-14" r="4" fill="#5FCB8B"/></g>`;
+
+const snail = (x, y, s = 1) =>
+  `<g transform="translate(${x} ${y}) scale(${s})">` +
+  `<path d="M44,-12 L38,-30 M54,-12 L58,-30" fill="none" ${st(2.6)}/><circle cx="38" cy="-32" r="3.6" fill="${INK}"/><circle cx="58" cy="-32" r="3.6" fill="${INK}"/>` +
+  `<path d="M-34,14 Q-44,2 -28,0 L30,0 Q32,-16 48,-16 Q64,-14 62,2 Q60,14 44,14Z" fill="#FFE8A3" ${st()}/>` +
+  `<circle cx="52" cy="-4" r="2.6" fill="${INK}"/><path d="M48,4 Q52,8 57,4" fill="none" ${st(2.2)}/>` +
+  `<circle cx="0" cy="-16" r="25" fill="#FFC79A" ${st()}/><path d="M0,-16 Q8,-22 8,-12 Q6,-2 -6,-4 Q-16,-8 -14,-22 Q-8,-36 10,-32 Q22,-24 18,-8" fill="none" ${st(2.4)}/></g>`;
+
+const candy = (x, y, s, rot, color) =>
+  `<g transform="translate(${x} ${y}) rotate(${rot}) scale(${s})">` +
+  `<path d="M-24,0 L-50,-17 Q-43,0 -50,17Z" fill="${color.l}" ${st()}/><path d="M24,0 L50,-17 Q43,0 50,17Z" fill="${color.l}" ${st()}/>` +
+  `<ellipse cx="0" cy="0" rx="29" ry="20" fill="${color.c}" ${st()}/>` +
+  `<path d="M-12,-17 Q-2,0 -12,17 M6,-19 Q16,0 6,19" fill="none" stroke="#fff" stroke-width="4.5" stroke-linecap="round" opacity="0.75"/></g>`;
+
+const lollipop = (x, y, r, color, tilt = 0) =>
+  `<g transform="translate(${x} ${y}) rotate(${tilt})">` +
+  `<path d="M0,${r} L0,${r + 52}" fill="none" stroke="${INK}" stroke-width="9" stroke-linecap="round"/><path d="M0,${r} L0,${r + 52}" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round"/>` +
+  `<circle cx="0" cy="0" r="${r}" fill="${color.c}" ${st()}/>` +
+  `<path d="M0,0 Q${n(r * 0.4)},${n(-r * 0.3)} ${n(r * 0.35)},${n(r * 0.2)} Q${n(r * 0.1)},${n(r * 0.65)} ${n(-r * 0.45)},${n(r * 0.35)} Q${n(-r * 0.85)},${n(-r * 0.2)} ${n(-r * 0.3)},${n(-r * 0.7)} Q${n(r * 0.4)},${n(-r * 0.95)} ${n(r * 0.78)},${n(-r * 0.3)}" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" opacity="0.85"/></g>`;
+
+const pencil = (x1, y1, x2, y2, color = '#FFD95A') =>
+  `<path d="M${x1},${y1} L${x2},${y2}" fill="none" stroke="${INK}" stroke-width="10.5" stroke-linecap="round"/>` +
+  `<path d="M${x1},${y1} L${x2},${y2}" fill="none" stroke="${color}" stroke-width="5.5" stroke-linecap="round"/>` +
+  `<circle cx="${x1}" cy="${y1}" r="2.6" fill="${INK}"/>`;
+
+const DESK = '#F5C49A';
+const desk = (x, y, w) =>
+  `<rect x="${x + 26}" y="${y + 13}" width="12" height="60" fill="#E7AC7C" ${st()}/><rect x="${x + w - 38}" y="${y + 13}" width="12" height="60" fill="#E7AC7C" ${st()}/>`;
+const deskTop = (x, y, w) => `<rect x="${x}" y="${y}" width="${w}" height="16" rx="8" fill="${DESK}" ${st()}/>`;
+
+function headerArt() {
+  return svg(256,
+    puff([[40, 56, 18], [64, 48, 22], [88, 58, 16]], 0.6) + puff([[150, 222, 16], [172, 214, 20], [196, 224, 15]], 0.6) +
+    sparkle(40, 130, 10, '#fff', 0.2) + sparkle(604, 120, 9, '#fff', 0.9) + sparkle(322, 60, 8, '#fff', 0.5) + sparkle(236, 196, 7, '#fff', 1.2) + sparkle(410, 200, 7, '#fff', 0.3) +
+
+    bob(
+      blob([[112, 98, 30], [150, 76, 34], [194, 86, 30], [172, 112, 32], [128, 118, 26]], '#fff') + dino(146, 116, 0.52),
+      6, 3.2) +
+    `<circle cx="244" cy="126" r="7" fill="#fff" ${st(2.4)}/><circle cx="264" cy="140" r="4.6" fill="#fff" ${st(2.4)}/>` +
+    bob(
+      blob([[452, 88, 30], [494, 72, 34], [534, 90, 30], [508, 114, 30], [468, 116, 26]], '#fff') + rocket(474, 98, -36, 1.05) + planet(524, 94, 14),
+      6, 3.2, 0.6) +
+    `<circle cx="398" cy="128" r="7" fill="#fff" ${st(2.4)}/><circle cx="378" cy="142" r="4.6" fill="#fff" ${st(2.4)}/>` +
+
+    sway(lollipop(62, 186, 25, C.pink, -10), 62, 262, 4, 3) +
+    sway(lollipop(584, 150, 22, C.lav, 10), 584, 224, 4, 3.4) +
+    bob(candy(590, 62, 0.62, 18, C.lemon), 5, 2.6, 0.3) +
+    bob(candy(246, 44, 0.55, -16, C.mint), 5, 2.8) +
+    bob(candy(404, 40, 0.5, 14, C.blue), 5, 2.4, 0.5) +
+
+    limb('M380,244 L408,210', C.lemon.c, 15) +
+    pencil(398, 222, 424, 178, '#FF8FB1') +
+    hand(410, 206, 10.5) +
+    `<path d="M250,262 Q252,210 320,206 Q388,210 390,262Z" fill="${C.lemon.c}" ${st()}/>` +
+    bob(head(320, 162, { k: 1.22, eyes: 'big', mouth: 'smile', look: [0, -2] }), 3, 2)
+  );
+}
+
+function raceArt() {
+  const lane = (y) =>
+    `<rect x="22" y="${y}" width="596" height="64" rx="32" fill="#fff" opacity="0.8"/>` +
+    `<path d="M48,${y + 32} L592,${y + 32}" fill="none" stroke="#F4E3AE" stroke-width="3" stroke-linecap="round" stroke-dasharray="2 14"/>`;
+  const legs = (x, y) => `<path d="M${x - 8},${y} L${x - 14},${y + 11} M${x + 8},${y} L${x + 15},${y + 10}" fill="none" ${st(3.4)}/>`;
+  const speed = (x, y, color) =>
+    slide(`<path d="M${x},${y - 10} L${x + 22},${y - 10} M${x - 10},${y + 2} L${x + 18},${y + 2} M${x + 2},${y + 14} L${x + 22},${y + 14}" fill="none" stroke="${color}" stroke-width="4.5" stroke-linecap="round"/>`, 6, 0.7);
+  return svg(276,
+    `<rect width="640" height="276" fill="${C.lemon.l}"/>` +
+    lane(20) + lane(106) + lane(192) +
+
+    pill(286, 52, 196, 40, C.pink.l, '9 岁的大脑', C.pink.d, 23) +
+    speed(430, 50, C.pink.c) +
+    bob(
+      legs(522, 72) +
+      blob([[506, 46, 16], [524, 40, 17], [540, 48, 15], [512, 60, 15], [532, 62, 16]], '#FFA9C4') +
+      `<path d="M523,26 Q516,38 524,44 Q531,50 523,60" fill="none" stroke="#F0769F" stroke-width="2.6" stroke-linecap="round"/>` +
+      miniFace(523, 52, 0.72),
+      5, 0.5) +
+
+    pill(138, 138, 164, 40, C.peach.l, '6 岁的手', C.peach.d, 23) +
+    bob(
+      legs(330, 160) +
+      pencil(352, 128, 366, 106, '#FFD95A') +
+      blob([[330, 144, 19], [316, 122, 7.5], [326, 117, 8], [336, 117, 8], [346, 122, 7.5], [309, 142, 7.5]], '#FFC8A8') +
+      miniFace(330, 144, 0.68),
+      4, 0.9) +
+    drop(362, 150, 0.8) +
+
+    pill(384, 224, 296, 40, C.lav.l, '5 岁半的情绪刹车片', C.lav.d, 23) +
+    bob(
+      legs(170, 244) +
+      `<path d="M170,248 C132,224 139,194 157,194 C166,194 170,203 170,208 C170,203 174,194 183,194 C201,194 208,224 170,248Z" fill="#C9B8FF" ${st()}/>` +
+      miniFace(170, 216, 0.68, 'sad'),
+      3, 1.6) +
+    drop(204, 204, 0.8) + drop(136, 208, 0.7) +
+    sparkle(600, 52, 9, C.lemon.c, 0.3) + sparkle(40, 138, 8, C.lemon.c, 0.9)
+  );
+}
+
+function classroomArt() {
+  return svg(288,
+    `<rect width="640" height="288" fill="${C.blue.l}"/>` +
+    `<circle cx="300" cy="150" r="5" fill="#fff"/><circle cx="610" cy="60" r="6" fill="#fff"/><circle cx="24" cy="200" r="5" fill="#fff"/>` +
+    sparkle(580, 110, 10, '#fff', 0.4) + sparkle(284, 200, 8, '#fff', 1) +
+
+    `<rect x="30" y="38" width="226" height="130" rx="14" fill="#7FD3BA" ${st()}/>` +
+    label(143, 82, 25, '1+1=2', '#fff') + label(143, 116, 25, '1+1=2', '#fff', 'opacity="0.7"') + label(143, 150, 25, '1+1=2', '#fff', 'opacity="0.42"') +
+    `<rect x="46" y="166" width="194" height="9" rx="4.5" fill="#E7AC7C" ${st(2.4)}/>` +
+    sway(`<rect x="196" y="18" width="92" height="36" rx="18" fill="${C.lemon.c}" ${st()}/>` + label(242, 43, 19, '第8遍'), 242, 36, 5, 2) +
+
+    bob(
+      blob([[330, 78, 26], [364, 56, 30], [406, 60, 30], [436, 82, 24], [384, 88, 30]], '#fff') + rocket(354, 74, -38, 0.95) + planet(412, 72, 13),
+      5, 3) +
+    `<circle cx="458" cy="112" r="7" fill="#fff" ${st(2.4)}/><circle cx="472" cy="126" r="4.6" fill="#fff" ${st(2.4)}/>` +
+
+    `<g transform="rotate(-7 122 236)"><rect x="62" y="198" width="120" height="76" rx="9" fill="#fff" ${st()}/>` +
+    `<circle cx="100" cy="222" r="9" fill="none" ${st(2.4)}/><path d="M100,231 L100,252 M100,238 L88,246 M100,238 L112,244 M100,252 L92,264 M100,252 L109,264" fill="none" ${st(2.4)}/>` +
+    `<path d="M96,221 L96,222 M104,221 L104,222 M96,226 Q100,229 104,226" fill="none" ${st(2)}/>` + star5(150, 236, 15, C.lemon.c, 2.4) + `</g>` +
+
+    desk(378, 232, 244) +
+    `<path d="M446,240 Q444,196 497,193 Q550,196 548,240Z" fill="${C.lemon.c}" ${st()}/>` +
+    head(496, 156, { rot: 8, eyes: 'dot', look: [-3, -4], mouth: 'o' }) +
+    deskTop(378, 232, 244) +
+    limb('M556,234 L532,194', C.lemon.c) + hand(529, 188) +
+    limb('M456,234 L482,232', C.lemon.c) + hand(487, 231, 8.5)
+  );
+}
+
+function writingArt() {
+  return svg(288,
+    `<rect width="640" height="288" fill="${C.peach.l}"/>` +
+    `<circle cx="610" cy="52" r="6" fill="#fff"/><circle cx="330" cy="216" r="5" fill="#fff"/>` +
+    sparkle(560, 96, 10, '#fff', 0.4) + sparkle(404, 44, 8, '#fff', 1) +
+
+    blob([[108, 80, 36], [160, 54, 40], [228, 48, 42], [292, 62, 38], [326, 90, 28], [200, 98, 42], [268, 100, 36]], '#fff') +
+    `<g transform="translate(214 76)">` +
+    slide(`<path d="M-124,-10 L-104,-10 M-130,2 L-106,2 M-122,14 L-104,14" fill="none" stroke="${C.blue.c}" stroke-width="4.5" stroke-linecap="round"/>`, 6, 0.6) +
+    `<path d="M-92,-18 L44,-18 Q82,-16 98,8 Q102,16 92,16 L-92,16 Q-98,16 -98,10 L-98,-12 Q-98,-18 -92,-18Z" fill="#fff" ${st()}/>` +
+    `<path d="M-96,5 L96,5" fill="none" stroke="${C.blue.c}" stroke-width="5"/>` +
+    [-84, -56, -28, 0].map((x) => `<rect x="${x}" y="-12" width="20" height="12" rx="3" fill="#BFE0FF" ${st(2)}/>`).join('') +
+    `<path d="M30,-12 L48,-12 Q66,-10 76,0 L30,0Z" fill="#BFE0FF" ${st(2)}/><circle cx="90" cy="10" r="3" fill="${C.lemon.c}"/></g>` +
+    planet(318, 96, 9) + sparkle(120, 52, 7, C.lemon.c, 0.3) + sparkle(286, 34, 6, C.pink.c, 0.8) +
+    `<circle cx="372" cy="130" r="7" fill="#fff" ${st(2.4)}/><circle cx="394" cy="140" r="4.6" fill="#fff" ${st(2.4)}/>` +
+
+    `<g transform="rotate(-4 146 218)">` +
+    `<rect x="36" y="170" width="220" height="100" rx="12" fill="#fff" ${st()}/>` +
+    `<path d="M52,202 L240,202 M52,228 L240,228 M52,254 L240,254" fill="none" stroke="#DCECFB" stroke-width="2.4"/>` +
+    `<text x="100" y="250" font-size="60" font-weight="400" fill="${INK}" text-anchor="middle" transform="rotate(-9 100 230)">太</text>` +
+    `<path d="M160,206 L157,250 M160,208 Q184,208 172,224 Q168,230 160,228" fill="none" ${st(4)}/>` +
+    pencil(190, 238, 226, 204) + `</g>` +
+    slide(snail(196, 164, 0.6), 4, 3) +
+
+    desk(366, 232, 256) +
+    `<path d="M402,240 Q400,196 453,193 Q506,196 504,240Z" fill="${C.blue.c}" ${st()}/>` +
+    head(452, 156, { rot: -5, eyes: 'frown', look: [-2, 3], mouth: 'pout' }) +
+    drop(500, 126, 1.1) +
+    deskTop(366, 232, 256) +
+    limb('M412,234 L438,230', C.blue.c) + pencil(442, 228, 462, 196) + hand(443, 229, 8.5) +
+    limb('M512,234 L486,232', C.blue.c) + hand(481, 231, 8.5)
+  );
+}
+
+function perfectArt() {
+  const ball = (x, y, r) => {
+    const pts = [1, 0.8, 0.98, 0.76, 1, 0.82, 0.95, 0.78, 1, 0.84].map((f, i) => {
+      const a = (i * Math.PI) / 5;
+      return `${n(x + r * f * Math.cos(a))},${n(y + r * f * Math.sin(a))}`;
+    });
+    return `<polygon points="${pts.join(' ')}" fill="#fff" ${st()}/>` +
+      `<path d="M${n(x - r * 0.45)},${n(y - r * 0.1)} L${x},${n(y + r * 0.2)} L${n(x + r * 0.4)},${n(y - r * 0.3)} M${x},${n(y + r * 0.2)} L${n(x - r * 0.1)},${n(y + r * 0.55)}" fill="none" ${st(2)}/>`;
+  };
+  return svg(288,
+    `<rect width="640" height="288" fill="${C.pink.l}"/>` +
+    `<ellipse cx="320" cy="270" rx="280" ry="16" fill="#FFD0E0"/>` +
+    `<circle cx="300" cy="40" r="5" fill="#fff"/><circle cx="612" cy="200" r="6" fill="#fff"/><circle cx="30" cy="190" r="5" fill="#fff"/>` +
+    sparkle(420, 60, 10, '#fff', 0.4) + sparkle(60, 236, 8, '#fff', 1) +
+
+    bob(
+      blob([[96, 82, 30], [136, 58, 34], [182, 62, 32], [212, 88, 26], [156, 96, 34]], '#fff') +
+      `<rect x="116" y="46" width="80" height="66" rx="7" fill="${C.lemon.l}" ${st()}/>` + star5(156, 72, 17, C.lemon.c, 2.4) + label(156, 106, 15, '100', '#F0618F'),
+      5, 3) +
+    `<circle cx="244" cy="118" r="7" fill="#fff" ${st(2.4)}/><circle cx="262" cy="132" r="4.6" fill="#fff" ${st(2.4)}/>` +
+
+    `<ellipse cx="306" cy="268" rx="13" ry="8" fill="#fff" ${st()}/><ellipse cx="334" cy="268" rx="13" ry="8" fill="#fff" ${st()}/>` +
+    `<rect x="298" y="240" width="17" height="26" rx="4" fill="#7C8CE8" ${st()}/><rect x="325" y="240" width="17" height="26" rx="4" fill="#7C8CE8" ${st()}/>` +
+    `<path d="M290,184 Q284,236 292,248 L348,248 Q356,236 350,184 Q320,174 290,184Z" fill="${C.lemon.c}" ${st()}/>` +
+    limb('M296,200 L262,188', C.lemon.c) + limb('M344,200 L378,188', C.lemon.c) +
+    sway(`<path d="M218,150 L254,146 L249,158 L256,169 L249,180 L255,192 L222,196Z" fill="#fff" ${st()}/><path d="M228,162 L242,160 M228,174 L240,173 M230,186 L244,184" fill="none" ${st(2)}/>`, 256, 188, 5, 0.8) +
+    sway(`<path d="M422,150 L386,146 L391,158 L384,169 L391,180 L385,192 L418,196Z" fill="#fff" ${st()}/><path d="M412,162 L398,160 M412,174 L400,173 M410,186 L396,184" fill="none" ${st(2)}/>`, 384, 188, 5, 0.8) +
+    hand(258, 187) + hand(382, 187) +
+    head(320, 142, { eyes: 'cry', mouth: 'wail' }) +
+
+    `<g transform="rotate(7 520 116)"><rect x="466" y="66" width="108" height="96" rx="8" fill="#fff" ${st()}/>` +
+    `<path d="M520,84 L530,106 L556,104 L536,120 L548,146 L522,130 L498,148 L506,120 L486,110 L512,106Z" fill="none" stroke="#A99BB5" stroke-width="3" stroke-linejoin="round"/>` +
+    `<path d="M480,78 L494,92 M494,78 L480,92" fill="none" stroke="#F0618F" stroke-width="3.6" stroke-linecap="round"/></g>` +
+    ball(486, 252, 18) + ball(530, 260, 14) + ball(576, 250, 19)
+  );
+}
+
+function logicArt() {
+  const block = (x, y, w, fill, text, size = 19) =>
+    `<rect x="${n(x)}" y="${n(y)}" width="${w}" height="34" rx="10" fill="${fill}" ${st(2.4)}/>` + label(n(x + w / 2), n(y + 17 + size * 0.36), size, text, '#fff');
+  const pan = (x, y) =>
+    `<path d="M${x},${y} L${n(x - 58)},${n(y + 62)} M${x},${y} L${n(x + 58)},${n(y + 62)}" fill="none" ${st(2.4)}/>` +
+    `<path d="M${n(x - 66)},${n(y + 62)} L${n(x + 66)},${n(y + 62)} Q${x},${n(y + 100)} ${n(x - 66)},${n(y + 62)}Z" fill="${C.lemon.c}" ${st()}/>`;
+  const tilt = (7 * Math.PI) / 180;
+  const lx = n(470 - 98 * Math.cos(tilt)), ly = n(100 + 98 * Math.sin(tilt));
+  const rx = n(470 + 98 * Math.cos(tilt)), ry = n(100 - 98 * Math.sin(tilt));
+  return svg(288,
+    `<rect width="640" height="288" fill="${C.lav.l}"/>` +
+    `<ellipse cx="320" cy="270" rx="280" ry="16" fill="#DCD2FF"/>` +
+    `<circle cx="300" cy="40" r="5" fill="#fff"/><circle cx="24" cy="150" r="5" fill="#fff"/><circle cx="330" cy="210" r="5" fill="#fff"/>` +
+    sparkle(290, 110, 10, '#fff', 0.4) + sparkle(606, 40, 8, '#fff', 1) +
+
+    `<rect x="34" y="22" width="150" height="58" rx="29" fill="#fff" ${st()}/><path d="M118,77 L146,104 L150,77" fill="#fff" ${st()}/>` +
+    label(109, 61, 27, '凭什么？') +
+
+    `<ellipse cx="180" cy="268" rx="13" ry="8" fill="#fff" ${st()}/><ellipse cx="208" cy="268" rx="13" ry="8" fill="#fff" ${st()}/>` +
+    `<rect x="172" y="240" width="17" height="26" rx="4" fill="#7C8CE8" ${st()}/><rect x="199" y="240" width="17" height="26" rx="4" fill="#7C8CE8" ${st()}/>` +
+    `<path d="M164,184 Q158,236 166,248 L222,248 Q230,236 224,184 Q194,174 164,184Z" fill="${C.lemon.c}" ${st()}/>` +
+    limb('M170,200 L152,222', C.lemon.c) + hand(150, 225) +
+    sway(limb('M218,198 L248,166', C.lemon.c) + `<path d="M252,158 L256,140" fill="none" stroke="${INK}" stroke-width="10" stroke-linecap="round"/><path d="M252,158 L256,140" fill="none" stroke="${SKIN}" stroke-width="5" stroke-linecap="round"/>` + hand(250, 162), 218, 198, 5, 1.2) +
+    head(194, 142, { rot: -6, eyes: 'dot', look: [3, -2], mouth: 'grin' }) +
+
+    `<rect x="420" y="252" width="100" height="14" rx="7" fill="${C.lemon.c}" ${st()}/>` +
+    `<path d="M470,252 L470,100" fill="none" stroke="${INK}" stroke-width="13" stroke-linecap="round"/><path d="M470,252 L470,100" fill="none" stroke="${C.lemon.c}" stroke-width="7.4" stroke-linecap="round"/>` +
+    `<path d="M${lx},${ly} L${rx},${ry}" fill="none" stroke="${INK}" stroke-width="12" stroke-linecap="round"/><path d="M${lx},${ly} L${rx},${ry}" fill="none" stroke="#FFE894" stroke-width="6.4" stroke-linecap="round"/>` +
+    pan(lx, ly) + block(lx - 60, ly + 28, 58, '#FF9DBB', '因果') + block(lx + 2, ly + 28, 58, C.mint.c, '公平') +
+    bob(pan(rx, ry) + block(rx - 54, ry + 28, 108, '#B9B2C6', '大人说了算', 17), 4, 2.4) +
+    `<circle cx="470" cy="100" r="9" fill="#fff" ${st()}/>`
+  );
+}
+
+function draftArt() {
+  return svg(232,
+    `<rect width="640" height="232" fill="${C.lemon.l}"/>` +
+    `<circle cx="30" cy="40" r="5" fill="#fff"/><circle cx="612" cy="200" r="6" fill="#fff"/>` +
+    sparkle(320, 34, 9, '#fff', 0.4) + sparkle(40, 196, 8, '#fff', 1) + sparkle(600, 44, 8, '#fff', 0.7) +
+
+    sway(
+      `<rect x="64" y="38" width="190" height="156" rx="12" fill="#fff" ${st()}/>` +
+      `<g transform="translate(160 112)"><path d="M-46,-8 L-62,-14 M-36,-36 L-46,-52 M-4,-46 L-2,-64 M30,-36 L44,-50 M46,-4 L64,-8 M38,28 L52,42 M2,46 L0,62 M-34,32 L-48,44" fill="none" stroke="#FFB84D" stroke-width="5" stroke-linecap="round"/>` +
+      `<path d="M-30,0 Q-36,-28 -4,-32 Q30,-36 32,-2 Q36,30 0,32 Q-30,32 -30,0Z" fill="${C.lemon.c}" ${st()}/>` +
+      `<circle cx="-11" cy="-6" r="3.6" fill="${INK}"/><circle cx="11" cy="-2" r="5" fill="${INK}"/><path d="M-12,12 Q-4,20 2,13 Q8,8 14,14" fill="none" ${st(2.6)}/></g>`,
+      160, 116, 3, 2.6) +
+    sway(
+      `<rect x="386" y="38" width="190" height="156" rx="12" fill="#fff" ${st()}/>` +
+      `<g transform="translate(482 120)"><path d="M-30,-18 L-36,-50 L-8,-30Z" fill="${C.peach.c}" ${st()}/><path d="M12,-32 L34,-54 L34,-16Z" fill="${C.peach.c}" ${st()}/>` +
+      `<path d="M-38,4 Q-42,-28 -8,-32 Q32,-36 38,-2 Q42,32 2,34 Q-36,34 -38,4Z" fill="${C.peach.l}" ${st()}/>` +
+      `<circle cx="-13" cy="-4" r="3.6" fill="${INK}"/><circle cx="13" cy="-8" r="5.6" fill="${INK}"/><path d="M-3,6 L3,6 L0,10Z" fill="#F0618F" ${st(2)}/>` +
+      `<path d="M0,10 Q-6,20 -12,14 M0,10 Q8,20 13,13" fill="none" ${st(2.4)}/><path d="M-22,6 L-46,2 M-22,12 L-44,18 M24,6 L48,0 M24,12 L46,20" fill="none" ${st(2)}/></g>`,
+      482, 116, 3, 2.6) +
+
+    `<path d="M300,150 L286,204 L306,192 L318,208 L322,150Z" fill="${C.blue.c}" ${st()}/><path d="M340,150 L354,204 L334,192 L322,208 L318,150Z" fill="${C.mint.c}" ${st()}/>` +
+    (() => {
+      const pts = [];
+      for (let i = 0; i < 28; i++) {
+        const a = (i * Math.PI) / 14;
+        const r = i % 2 ? 44 : 51;
+        pts.push(`${n(320 + r * Math.cos(a))},${n(112 + r * Math.sin(a))}`);
+      }
+      return `<polygon points="${pts.join(' ')}" fill="${C.pink.c}" ${st()}/>`;
+    })() +
+    `<circle cx="320" cy="112" r="34" fill="#fff" ${st(2.4)}/>` + label(320, 119, 19, '丑草稿', C.pink.d)
+  );
+}
+
+function closingArt() {
+  const start = (y, color, text) => `<rect x="20" y="${y - 20}" width="88" height="40" rx="20" fill="${color.c}" ${st()}/>` + label(64, y + 8, 22, text, '#fff');
+  return svg(236,
+    puff([[170, 214, 14], [192, 206, 18], [214, 216, 13]], 0.7) + puff([[420, 40, 15], [442, 32, 19], [466, 42, 14]], 0.7) +
+    `<path d="M108,46 C230,10 280,150 400,112 S516,112 540,112" fill="none" stroke="${C.pink.c}" stroke-width="8" stroke-linecap="round"/>` +
+    `<path d="M108,118 C220,170 290,60 400,116 S516,112 540,112" fill="none" stroke="${C.blue.c}" stroke-width="8" stroke-linecap="round"/>` +
+    `<path d="M108,190 C230,200 300,196 400,126 S516,114 540,112" fill="none" stroke="${C.mint.c}" stroke-width="8" stroke-linecap="round"/>` +
+    start(46, C.pink, '认知') + start(118, C.blue, '生理') + start(190, C.mint, '情绪') +
+    `<g fill="none" stroke="${C.lemon.c}" stroke-width="6" stroke-linecap="round"><path d="M572,36 L572,48 M572,176 L572,188 M496,112 L508,112 M636,112 L624,112 M518,58 L527,67 M626,58 L617,67 M518,166 L527,157 M626,166 L617,157"/>${twinkle(0, 1.4)}</g>` +
+    bob(star5(572, 112, 50, C.lemon.c) + miniFace(572, 114, 1.1), 5, 2) +
+    sparkle(300, 40, 9, '#fff', 0.4) + sparkle(250, 214, 8, '#fff', 1) + sparkle(470, 196, 9, '#fff', 0.7)
+  );
+}
+
+const candyBadge = (text, color) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 76" style="display:block;width:100%;height:auto;">` +
+  `<path d="M62,38 L24,13 Q36,38 24,63Z" fill="${color.l}" ${st(3)}/><path d="M138,38 L176,13 Q164,38 176,63Z" fill="${color.l}" ${st(3)}/>` +
+  `<ellipse cx="100" cy="38" rx="48" ry="29" fill="${color.c}" ${st(3)}/>` +
+  `<path d="M66,28 Q74,17 90,14" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" opacity="0.8"/>` +
+  `<text x="100" y="50" font-size="33" font-weight="900" fill="#fff" text-anchor="middle">${text}</text></svg>`;
+
+const avatar = (who) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" style="display:block;width:100%;height:auto;">` +
+  (who === 'kid'
+    ? `<circle cx="40" cy="40" r="38" fill="${C.lemon.l}"/>` + head(40, 44, { k: 0.8, eyes: 'dot', mouth: 'smile' })
+    : `<circle cx="40" cy="40" r="38" fill="${C.pink.l}"/>` + head(40, 43, { k: 0.76, style: 'mom', hair: '#8A5A44', eyes: 'happy', mouth: 'smile' })) +
+  `</svg>`;
+
+/* ---------- 正文（全部内联样式，公众号编辑器可保留） ---------- */
+
+const P = `margin:0;padding:0;font-size:16px;line-height:1.9;color:${TEXT};text-align:justify;`;
+const marker = (text, color = '#FFE27A') => `<span style="font-weight:700;background-image:linear-gradient(transparent 62%,${color} 62%);">${text}</span>`;
+const strong = (text, color) => `<strong style="color:${color.d};font-weight:800;">${text}</strong>`;
+const para = (html, top = 12, extra = '') => `<p style="${P}margin-top:${top}px;${extra}">${html}</p>`;
+
+const sectionTitle = (num, color, lines) => `
+<section style="margin:52px 0 0;text-align:center;">
+  <section style="width:104px;margin:0 auto;line-height:0;">${candyBadge(num, color)}</section>
+  ${lines.map((line, i) => `<p style="margin:${i ? 4 : 10}px 0 0;padding:0;font-size:${i ? 17 : 21}px;line-height:1.5;font-weight:900;color:${i ? color.d : TEXT};text-align:center;letter-spacing:1px;">${line}</p>`).join('')}
+  <p style="margin:6px 0 0;padding:0;font-size:12px;line-height:1.4;color:${color.c};text-align:center;letter-spacing:8px;">● ● ●</p>
+</section>`;
+
+const numberDot = (num, color, size = 34) =>
+  `<section style="flex-shrink:0;width:${size}px;height:${size}px;line-height:${size}px;border-radius:50%;background-color:${color.c};color:#fff;font-size:${Math.round(size * 0.56)}px;font-weight:900;text-align:center;margin-right:10px;">${num}</section>`;
+
+const DAILY = [
+  { icon: '🕷️', color: C.pink, text: `平时聊天金句频出、讲起恐龙和宇宙头头是道，可一坐到书桌前写三行生字，${marker('字歪得像蜘蛛爬', C.pink.l)}；` },
+  { icon: '🧮', color: C.lemon, text: `拐着弯的难题一眼看穿，偏偏${marker('最简单的口算和抄写天天翻车', '#FFEFA6')}；` },
+  { icon: '😭', color: C.mint, text: `写错一个字，瞬间眼泪决堤，气得把本子撕碎，干脆摆烂说${marker('“我不写了”', '#C9F1E3')}；` },
+  { icon: '💭', color: C.blue, text: `老师反馈上课爱发呆、小动作多、还喜欢顶嘴，可拿课本回家一考，${marker('知识点他居然全会', '#CFE6FF')}。` },
+];
+
+const sticker = (text, color, deg) =>
+  `<span style="display:inline-block;margin:0 2px;padding:0 9px;border-radius:8px;background-color:${color.l};color:${color.d};font-weight:800;line-height:1.7;transform:rotate(${deg}deg);">${text}</span>`;
+
+const AGES = [
+  { icon: '🧠', color: C.pink, head: '一颗 ', key: '9 岁的大脑', tail: '（逻辑、理解和审美标准已经超前）；' },
+  { icon: '✋', color: C.peach, head: '一双 ', key: '6 岁的手', tail: '（手部小肌肉和控笔能力还很稚嫩）；' },
+  { icon: '💗', color: C.lav, head: '一套 ', key: '5 岁半的情绪刹车片', tail: '（一遇挫败依然容易失控）。' },
+];
+
+const BEHAVIORS = [
+  {
+    color: C.blue, art: classroomArt, title: '上课发呆、小动作多', not: '不是不专注，', is: '是在自救',
+    body: (c) => [`低年级课堂为了照顾大多数孩子，简单知识点往往要重复讲七八遍。对信息处理极快的孩子来说，${strong('听一两遍就懂了', c)}。剩下的时间里，大脑实在忍受不了极度无聊，只能靠神游、画小人、晃椅子来给自己找点刺激。`],
+  },
+  {
+    color: C.peach, art: writingArt, title: '脑子灵光，却打死不肯写字', not: '不是懒，', is: '是手追不上脑',
+    body: (c) => [
+      `6 到 8 岁，手部精细动作发育很慢。脑子里已经演完了一部科幻大片，笔尖却连“太阳”两个字都要吭哧半天。这种${strong('“思维坐高铁、写字坐绿皮车”', c)}的撕裂感，换谁都烦躁。`,
+      `至于简单题爱出错，多半是大脑自动跳步，或者想得太深，钻进了出题人都没注意的牛角尖。`,
+    ],
+  },
+  {
+    color: C.pink, art: perfectArt, title: '错一点就哭、干脆不做', not: '不是玻璃心，', is: '是完美主义瘫痪',
+    body: (c) => [`正因为审美和认知超前，孩子脑子里非常清楚“一幅完美的画、一张满分的卷子长什么样”。可手头做出来的成品远远够不到心理标准。落差太大，让他觉得${strong('“做不到完美就是彻底失败”', c)}，干脆拒绝动笔，或者一出错就撕纸重来。`],
+  },
+  {
+    color: C.lav, art: logicArt, title: '爱顶嘴、不合群', not: '不是刺头，', is: '是较真逻辑',
+    body: (c) => [
+      `逻辑感萌发早的孩子，内心服从的是${strong('因果和公平', c)}，而不是“大人说了算”。规则前后矛盾时，他们本能地会反驳、谈判。`,
+      `至于不爱和同龄人玩、偏爱黏着大人或高年级哥哥姐姐，也只是因为交友看重${strong('“心智年龄”', c)}——在同龄人的简单游戏里，他们确实觉得乏味。`,
+    ],
+  },
+];
+
+const behaviorCard = (b, i) => `
+<section style="margin:28px 0 0;border-radius:26px;background-color:${b.color.l};padding:7px;">
+  <section style="border-radius:20px;background-color:#fff;padding:16px 14px 18px;">
+    <section style="display:flex;align-items:center;">
+      ${numberDot(i + 1, b.color)}
+      <p style="margin:0;padding:0;font-size:18px;line-height:1.5;font-weight:900;color:${TEXT};text-align:left;">${b.title}</p>
+    </section>
+    <section style="margin-top:10px;">
+      <section style="display:inline-block;background-color:${b.color.l};border-radius:999px;padding:3px 14px;font-size:14px;line-height:1.7;color:#8C8198;">${b.not}<strong style="color:${b.color.d};font-weight:800;">${b.is}</strong></section>
+    </section>
+    <section style="margin-top:14px;border-radius:16px;overflow:hidden;line-height:0;">${b.art()}</section>
+    ${b.body(b.color).map((s, j) => para(s, j ? 10 : 14)).join('')}
+  </section>
+</section>`;
+
+const kid = (label, text) => ({ who: 'kid', label, text });
+const parent = (label, text) => ({ who: 'parent', label, text });
+const note = (text) => ({ who: 'note', text });
+
+const TIPS = [
+  {
+    color: C.mint, title: '把“动脑子”和“练写字”彻底拆开',
+    body: (c) => [`每天只留 ${strong('5 到 10 分钟', c)}专心练控笔，绝不搞海量罚抄。写日记、讲思路卡壳时，试着当一回孩子的${strong('“专职小秘书”', c)}：`],
+    chat: [
+      kid('娃（烦躁摔笔）', '我想写外星人把操场吸走了，可字都不会写，烦死了！'),
+      parent('家长', '这脑洞绝了！你是脑子开高铁，小手还在骑三轮，追不上太正常了。今天我当你秘书，你尽管口述大片，我来记草稿纸上。'),
+      kid('娃（眼睛亮了）', '真的？先飞过来一个发蓝光的圆盘……'),
+      parent('家长', '没问题。记完你挑两句最帅的自己抄到本子上，咱俩合伙交差，成交？'),
+    ],
+    end: '保住表达欲，切小书写量，才不会因为“手笨”毁掉学习兴趣。',
+  },
+  {
+    color: C.lemon, title: '戒掉“你真聪明”，约定第一遍画个“丑草稿”',
+    body: (c) => [
+      `研究反复提醒：总夸“你真聪明”，等于给孩子套上紧箍咒——“我必须一次就对，错了就不是聪明小孩”。夸奖要落到${strong('具体动作', c)}上，比如“你先找出了规律，省了好多劲儿”。`,
+      `如果娃因为怕画不好、写不好迟迟不敢动笔，直接踩碎门槛：${strong('“咱俩比赛，第一遍必须画个歪歪扭扭的丑草稿，谁画太工整算谁输。”', c)}`,
+    ],
+    art: draftArt,
+    end: '允许第一稿“丑”，笔才能动起来。',
+  },
+  {
+    color: C.pink, title: '崩溃时先喊“暂停”，情绪上头绝不讲道理',
+    body: (c) => [`再讲逻辑的孩子，一旦橡皮把纸搓破洞，理性大脑照样“断电”。这时候说“太玻璃心”，只会火上浇油。顺序必须反过来——${strong('先灭火，再讲理', c)}：`],
+    chat: [
+      kid('娃（把纸搓破，大哭）', '又破了！我怎么这么笨！不写了！'),
+      parent('家长（按住本子，放慢声音）', '眼看写顺了纸偏偏破了，换谁都窝火。咱先喊‘暂停’，我现在不提写字，你去喝口水、打两拳抱枕。五分钟火气退了，咱再把破洞变魔术补上。'),
+      note('（五分钟后，娃平静坐回桌前）'),
+      parent('家长', '大脑重启完毕。总设计师，这页咱是贴个贴纸当勋章，还是空一格重写？'),
+    ],
+    end: '帮他扛过情绪峰值，理性一上线，这帮孩子比谁都好商量。',
+  },
+  {
+    color: C.blue, title: '少说“照做就行”，用“摊牌因果 + 给选择权”化解顶嘴',
+    body: (c) => [`在安全和作息底线之外，直接把${strong('规则背后的逻辑', c)}摊开，顺手给一点${strong('掌控权', c)}：`],
+    chat: [
+      kid('娃（仰头质问）', '凭什么必须先写作业才能玩乐高？我同桌都是先玩再写的，太不公平了！'),
+      parent('家长', '其实定这规矩不是为了管你，是昨晚写太晚你困得直哭。我的底线就一条：九点必须上床睡够觉。'),
+      kid('娃', '那我要是保证九点前写完呢？'),
+      parent('家长', '成交。今晚试行‘先玩后写’：先拼半小时乐高，七点半闹钟响自己坐回书桌。九点前搞定，以后听你的；超时了明天切回老办法。敢不敢接这单？'),
+    ],
+    end: '当你愿意把逻辑讲透，他用来顶嘴的那股劲儿，往往会直接变成自我管理的动力。',
+  },
+];
+
+const BUBBLE = `border-radius:16px;padding:8px 12px;font-size:15px;line-height:1.75;color:${TEXT};text-align:left;`;
+const NAME = 'margin:0;padding:0;font-size:12px;line-height:1.6;color:#A096AC;';
+
+function chatRow(m, i) {
+  const top = i ? 12 : 0;
+  if (m.who === 'note') {
+    return `<section style="margin-top:${top}px;text-align:center;"><section style="display:inline-block;background-color:#EFE9F6;border-radius:999px;padding:1px 12px;font-size:12px;line-height:1.8;color:#8C8198;">${m.text}</section></section>`;
+  }
+  const face = `<section style="flex-shrink:0;width:38px;line-height:0;">${avatar(m.who)}</section>`;
+  if (m.who === 'kid') {
+    return `<section style="margin-top:${top}px;display:flex;align-items:flex-start;padding-right:26px;">${face}<section style="margin-left:8px;"><p style="${NAME}text-align:left;">${m.label}</p><section style="${BUBBLE}background-color:#FFF2BF;border-top-left-radius:4px;">${m.text}</section></section></section>`;
+  }
+  return `<section style="margin-top:${top}px;display:flex;align-items:flex-start;justify-content:flex-end;padding-left:26px;"><section style="margin-right:8px;"><p style="${NAME}text-align:right;">${m.label}</p><section style="${BUBBLE}background-color:#FFE0EB;border-top-right-radius:4px;">${m.text}</section></section>${face}</section>`;
+}
+
+const tipCard = (t, i) => `
+<section style="margin:26px 0 0;border:2px dashed ${t.color.c};border-radius:24px;background-color:#fff;padding:18px 14px 18px;">
+  <section style="display:flex;align-items:flex-start;">
+    ${numberDot(i + 1, t.color, 30)}
+    <p style="margin:0;padding:0;font-size:17px;line-height:1.6;font-weight:900;color:${TEXT};text-align:left;">${t.title}</p>
+  </section>
+  ${t.body(t.color).map((s) => para(s, 12)).join('')}
+  ${t.chat ? `<section style="margin-top:14px;background-color:#FBF7FF;border-radius:18px;padding:14px 10px;">${t.chat.map(chatRow).join('')}</section>` : ''}
+  ${t.art ? `<section style="margin-top:14px;border-radius:16px;overflow:hidden;line-height:0;">${t.art()}</section>` : ''}
+  <section style="margin-top:14px;display:flex;align-items:flex-start;background-color:${t.color.l};border-radius:14px;padding:10px 12px;">
+    <section style="flex-shrink:0;font-size:16px;line-height:1.8;margin-right:6px;">✨</section>
+    <p style="${P}font-size:15px;line-height:1.8;font-weight:700;">${t.end}</p>
+  </section>
+</section>`;
+
+const RULES = [
+  { icon: '🧠', color: C.pink, key: '认知年龄', tail: '喂养思维，' },
+  { icon: '✋', color: C.peach, key: '生理年龄', tail: '托底技能，' },
+  { icon: '💗', color: C.lav, key: '情绪年龄', tail: '安抚崩溃。' },
+];
+
+function buildArticle() {
+  return `
+<section style="font-size:16px;line-height:1.9;color:${TEXT};letter-spacing:0.5px;">
+
+  <section style="border-radius:28px;background-color:#FFE4EE;background-image:linear-gradient(160deg,#FFDCE9 0%,#EDE3FF 52%,#D9EEFF 100%);overflow:hidden;text-align:center;">
+    <section style="padding:26px 14px 0;">
+      <section style="display:inline-block;background-color:#fff;border-radius:999px;padding:2px 16px;font-size:13px;line-height:1.8;font-weight:800;color:${C.pink.d};letter-spacing:1px;">🍬 幼儿园到小学低年级</section>
+      <p style="margin:14px 0 0;padding:0;font-size:20px;line-height:1.5;font-weight:900;color:${TEXT};text-align:center;letter-spacing:1px;">最容易被当成“毛病”纠正的</p>
+      <p style="margin:0;padding:0;line-height:1.2;text-align:center;"><span style="font-size:66px;font-weight:900;color:${C.pink.c};text-shadow:3px 3px 0 #fff;">4</span><span style="font-size:40px;font-weight:900;color:${TEXT};letter-spacing:3px;text-shadow:3px 3px 0 #fff;">种行为</span></p>
+      <section style="display:inline-block;margin-top:10px;background-color:${C.pink.c};border-radius:999px;padding:5px 18px;font-size:15px;line-height:1.6;font-weight:800;color:#fff;letter-spacing:1px;">其实藏着认知超前的信号</section>
+    </section>
+    <section style="margin-top:4px;line-height:0;">${headerArt()}</section>
+  </section>
+
+  ${para('家里有幼儿园大班到小学二年级孩子的家长，大概都经历过这种让人' + strong('血压飙升', C.pink) + '的日常：', 30)}
+
+  ${DAILY.map((d) => `
+  <section style="margin-top:12px;display:flex;align-items:flex-start;background-color:${d.color.l};border-radius:18px;padding:12px 14px 12px 12px;">
+    <section style="flex-shrink:0;width:36px;height:36px;line-height:36px;border-radius:50%;background-color:#fff;text-align:center;font-size:18px;margin-right:10px;">${d.icon}</section>
+    <p style="${P}font-size:15px;line-height:1.8;">${d.text}</p>
+  </section>`).join('')}
+
+  ${para(`面对这些瞬间，大人很容易给娃贴上标签：${sticker('粗心', C.pink, -3)}、${sticker('懒惰', C.lemon, 2)}、${sticker('玻璃心', C.blue, -2)}、${sticker('不服管', C.lav, 3)}。`, 24)}
+  ${para('但在发展心理学研究里，很多 4 到 9 岁孩子的“难管”，其实并不是态度问题，而是他们正卡在一场剧烈的成长时间差里——', 14)}
+  <section style="margin-top:12px;text-align:center;">
+    <section style="display:inline-block;background-color:#FFF6D2;border:2px dashed ${C.lemon.c};border-radius:18px;padding:8px 24px;font-size:22px;line-height:1.5;font-weight:900;color:${C.pink.d};letter-spacing:3px;transform:rotate(-2deg);">非同步发展</section>
+  </section>
+
+  ${sectionTitle('01', C.pink, ['什么是“非同步发展”？'])}
+  ${para('我们总下意识觉得，一个 6 岁的孩子，全身上下都该是 6 岁的水平。', 22)}
+  ${para('但心理学家早就发现，很多高智力儿童最显著的特点，恰恰是' + marker('内部发展极度不平衡', '#FFD3E1') + '。')}
+  ${para('打个比方，他可能同时拥有：')}
+
+  <section style="margin-top:14px;border-radius:22px;overflow:hidden;line-height:0;">${raceArt()}</section>
+
+  ${AGES.map((a) => `
+  <section style="margin-top:10px;display:flex;align-items:center;background-color:${a.color.l};border-radius:18px;padding:10px 14px 10px 12px;">
+    <section style="flex-shrink:0;width:38px;height:38px;line-height:38px;border-radius:50%;background-color:#fff;text-align:center;font-size:19px;margin-right:10px;">${a.icon}</section>
+    <p style="${P}font-size:15px;line-height:1.7;text-align:left;">${a.head}<strong style="color:${a.color.d};font-weight:900;font-size:17px;">${a.key}</strong>${a.tail}</p>
+  </section>`).join('')}
+
+  <section style="margin-top:22px;border:2px solid #E6DCF8;border-radius:20px;background-color:#fff;overflow:hidden;">
+    <section style="background-color:#F1EAFF;padding:7px 14px;font-size:13px;line-height:1.7;">
+      <span style="color:${C.pink.c};">●</span> <span style="color:${C.lemon.c};">●</span> <span style="color:${C.mint.c};">●</span>
+      <span style="margin-left:8px;color:${C.lav.d};font-weight:800;">⚠️ 系统报错</span>
+    </section>
+    <section style="padding:12px 16px 14px;">
+      <p style="${P}">软件远远跑在硬件前面，系统自然天天报错。大人每天发火盯着的，其实就是这个${strong('“报错界面”', C.lav)}。</p>
+    </section>
+  </section>
+
+  ${sectionTitle('02', C.mint, ['最容易被冤枉的 4 种行为'])}
+  ${BEHAVIORS.map(behaviorCard).join('')}
+
+  ${sectionTitle('03', C.lav, ['家里怎么接住这种孩子？', '记住 18 个字'])}
+  ${para('面对几条成长曲线跑不齐的孩子，心理学给出的核心原则只有 18 个字：', 22)}
+
+  <section style="margin-top:16px;border-radius:24px;background-color:#F3EDFF;background-image:linear-gradient(160deg,#FFE4EE 0%,#EFE8FF 55%,#DDF0FF 100%);padding:16px 14px 18px;">
+    ${RULES.map((r, i) => `
+    <section style="margin-top:${i ? 10 : 0}px;display:flex;align-items:center;background-color:#fff;border-radius:999px;padding:8px 16px 8px 8px;">
+      <section style="flex-shrink:0;width:36px;height:36px;line-height:36px;border-radius:50%;background-color:${r.color.l};text-align:center;font-size:18px;margin-right:10px;">${r.icon}</section>
+      <p style="margin:0;padding:0;font-size:18px;line-height:1.6;font-weight:900;color:${TEXT};text-align:left;letter-spacing:1px;">按<span style="color:${r.color.d};">${r.key}</span>${r.tail}</p>
+    </section>`).join('')}
+  </section>
+
+  ${para('翻译成大白话就是：' + marker('脑子归脑子喂，小手归小手练', '#E4DAFF') + '，一旦闹脾气，就老老实实把他当个小不点来哄。', 18)}
+  ${para('落到每天晚上的书桌前，做好这 ' + strong('4 件事', C.lav) + '，日子能顺心一大半：')}
+
+  ${TIPS.map(tipCard).join('')}
+
+  <p style="margin:44px 0 0;padding:0;text-align:center;font-size:13px;line-height:1.5;letter-spacing:10px;"><span style="color:${C.pink.c};">●</span><span style="color:${C.lemon.c};">●</span><span style="color:${C.mint.c};">●</span><span style="color:${C.blue.c};">●</span><span style="color:${C.lav.c};">●</span></p>
+  ${para('幼儿园到小学低年级，对很多孩子来说，本就是一场' + strong('“身体追赶大脑”', C.pink) + '的过渡期。', 20)}
+  ${para('大人少一点急着定性的焦虑，别拿一把统一的尺子，去修剪孩子伸出来的长枝条。')}
+
+  <section style="margin-top:22px;border-radius:28px;background-color:#FFF1D6;background-image:linear-gradient(160deg,#FFE4EE 0%,#FFF3D2 50%,#DDF7EE 100%);overflow:hidden;">
+    <section style="padding:14px 0 0;line-height:0;">${closingArt()}</section>
+    <section style="padding:8px 18px 22px;">
+      <p style="${P}">给他一点时间，托住他暂时落后的小手和脆弱情绪。</p>
+      <p style="${P}margin-top:10px;font-weight:800;">等几条成长曲线慢慢汇合，今天让你最头疼的那些“毛病”，往往就是他${marker('未来最耀眼的光芒', '#FFD95A')}。</p>
+    </section>
+  </section>
+
+</section>`.replace(/>\s+</g, '><').trim();
+}
+
+/* ---------- 页面交互 ---------- */
+
+const preview = document.getElementById('preview');
+const toastEl = document.getElementById('toast');
+const articleHtml = buildArticle();
+preview.innerHTML = articleHtml;
+
+let toastTimer;
+function toast(message) {
+  toastEl.textContent = message;
+  toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('show'), 3200);
+}
+
+function copyViaEvent(html, text) {
+  let handled = false;
+  const onCopy = (event) => {
+    event.clipboardData.setData('text/html', html);
+    event.clipboardData.setData('text/plain', text);
+    event.preventDefault();
+    handled = true;
+  };
+  const selection = window.getSelection();
+  const range = document.createRange();
+  range.selectNodeContents(preview);
+  selection.removeAllRanges();
+  selection.addRange(range);
+  document.addEventListener('copy', onCopy);
+  let result = false;
+  try {
+    result = document.execCommand('copy');
+  } catch (error) {
+    result = false;
+  }
+  document.removeEventListener('copy', onCopy);
+  selection.removeAllRanges();
+  return handled && result;
+}
+
+async function copyViaClipboardApi(html, text) {
+  if (!navigator.clipboard || !window.ClipboardItem) return false;
+  try {
+    await navigator.clipboard.write([
+      new ClipboardItem({
+        'text/html': new Blob([html], { type: 'text/html' }),
+        'text/plain': new Blob([text], { type: 'text/plain' }),
+      }),
+    ]);
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
+document.getElementById('copy').addEventListener('click', async () => {
+  const text = preview.innerText;
+  const ok = copyViaEvent(articleHtml, text) || (await copyViaClipboardApi(articleHtml, text));
+  toast(ok ? '已复制！去公众号编辑器里 Ctrl / ⌘ + V 粘贴' : '复制失败：请换用电脑上的 Chrome 或 Edge 再试');
+});
+
+document.querySelectorAll('.seg button').forEach((button) => {
+  button.addEventListener('click', () => {
+    document.querySelectorAll('.seg button').forEach((b) => b.setAttribute('aria-pressed', String(b === button)));
+    preview.classList.toggle('wide', button.dataset.width === 'wide');
+  });
+});
+</script>
+</body>
+</html>
